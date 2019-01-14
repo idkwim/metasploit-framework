@@ -1,3 +1,11 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
+
 #
 # Simple example script that migrates to a specific process by name.
 # This is meant as an illustration.
@@ -53,7 +61,7 @@ end
 
 ### Main ###
 
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   server = client.sys.process.open
   original_pid = server.pid
   print_status("Current server process: #{server.name} (#{server.pid})")

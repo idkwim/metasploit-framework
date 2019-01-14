@@ -1,14 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Exploit::Remote::Tcp
   include Msf::Auxiliary::WmapScanServer
@@ -32,7 +27,7 @@ class Metasploit3 < Msf::Auxiliary
     register_options(
       [
         OptString.new('UserAgent', [ true, "The HTTP User-Agent sent in the request", 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)' ])
-      ], self.class)
+      ])
   end
 
   def run_host(target_host)
@@ -48,7 +43,7 @@ class Metasploit3 < Msf::Auxiliary
     connect
 
     sock.put("GET /_vti_inf.html HTTP/1.1\r\n" + "TE: deflate,gzip;q=0.3\r\n" + "Keep-Alive: 300\r\n" +
-        "Connection: Keep-Alive, TE\r\n" + "Host: #{target_host}\r\n" + "User-Agent: " +
+        "Connection: Keep-Alive, TE\r\n" + "Host: #{vhost}\r\n" + "User-Agent: " +
         datastore['UserAgent'] + "\r\n\r\n")
 
     res = sock.get_once || ''
@@ -95,8 +90,9 @@ class Metasploit3 < Msf::Auxiliary
     method = "method=open+service:#{fpversion}&service_name=/"
 
     req = "POST /_vti_bin/_vti_aut/author.dll HTTP/1.1\r\n" + "TE: deflate,gzip;q=0.3\r\n" +
-      "Keep-Alive: 300\r\n" + "Connection: Keep-Alive, TE\r\n" + "Host: #{target_host}\r\n" +
+      "Keep-Alive: 300\r\n" + "Connection: Keep-Alive, TE\r\n" + "Host: #{vhost}\r\n" +
       "User-Agent: " + datastore['UserAgent'] + "\r\n" + "Content-Type: application/x-www-form-urlencoded\r\n" +
+      "X-Vermeer-Content-Type: application/x-www-form-urlencoded" + "\r\n" +
       "Content-Length: #{method.length}\r\n\r\n" + method + "\r\n\r\n"
 
     sock.put(req)
@@ -118,7 +114,7 @@ class Metasploit3 < Msf::Auxiliary
 
       case retcode
         when /^200/
-          print_status("#{info} FrontPage ACCESS ALLOWED [#{retcode}]")
+          print_good("#{info} FrontPage ACCESS ALLOWED [#{retcode}]")
           # Report a note or vulnerability or something
           # Not really this one, but close
           report_vuln(
@@ -147,5 +143,4 @@ class Metasploit3 < Msf::Auxiliary
 
     disconnect
   end
-
 end

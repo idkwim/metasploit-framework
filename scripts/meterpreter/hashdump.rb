@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 #
 # Implement pwdump (hashdump) through registry reads + syskey
 
@@ -237,7 +244,7 @@ def decrypt_user_hash(rid, hbootkey, enchash, pass)
   d1o << d2.final
   d1o + d2o
 end
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   begin
 
     print_status("Obtaining the boot key...")

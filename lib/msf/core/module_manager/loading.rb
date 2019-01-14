@@ -1,3 +1,4 @@
+# -*- coding: binary -*-
 #
 # Gems
 #
@@ -6,8 +7,8 @@ require 'active_support/concern'
 #
 # Project
 #
-require 'msf/core/modules/loader/archive'
 require 'msf/core/modules/loader/directory'
+require 'msf/core/modules/loader/executable'
 
 # Deals with loading modules for the {Msf::ModuleManager}
 module Msf::ModuleManager::Loading
@@ -19,8 +20,8 @@ module Msf::ModuleManager::Loading
 
   # Classes that can be used to load modules.
   LOADER_CLASSES = [
-      Msf::Modules::Loader::Archive,
-      Msf::Modules::Loader::Directory
+      Msf::Modules::Loader::Directory,
+      Msf::Modules::Loader::Executable # TODO: XXX: When this is the first loader we can load normal exploits, but not payloads
   ]
 
   def file_changed?(path)
@@ -51,7 +52,7 @@ module Msf::ModuleManager::Loading
     changed
   end
 
-  attr_accessor :module_load_error_by_path
+  attr_accessor :module_load_error_by_path, :module_load_warnings
 
   # Called when a module is initially loaded such that it can be categorized
   # accordingly.
@@ -102,7 +103,7 @@ module Msf::ModuleManager::Loading
 
   # Load all of the modules from the supplied directory or archive
   #
-  # @param [String] path Path to a directory or Fastlib archive
+  # @param [String] path Path to a directory
   # @param [Hash] options
   # @option options [Boolean] :force Whether the force loading the modules even if they are unchanged and already
   #   loaded.
@@ -115,9 +116,9 @@ module Msf::ModuleManager::Loading
 
     loaders.each do |loader|
       if loader.loadable?(path)
-        count_by_type = loader.load_modules(path, options)
-
-        break
+        count_by_type.merge!(loader.load_modules(path, options)) do |key, prev, now|
+          prev + now
+        end
       end
     end
 

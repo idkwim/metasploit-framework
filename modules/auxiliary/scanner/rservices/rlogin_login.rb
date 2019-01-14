@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::Tcp
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::AuthBrute
@@ -38,7 +35,7 @@ class Metasploit3 < Msf::Auxiliary
         Opt::RPORT(513),
         OptString.new('TERM',  [ true, 'The terminal type desired', 'vt100' ]),
         OptString.new('SPEED', [ true, 'The terminal speed desired', '9600' ])
-      ], self.class)
+      ])
   end
 
   def run_host(ip)
@@ -218,7 +215,7 @@ class Metasploit3 < Msf::Auxiliary
     sock.put("\x00#{luser}\x00#{user}\x00#{datastore['TERM']}/#{datastore['SPEED']}\x00")
 
     # Read the expected nul byte response.
-    buf = sock.get_once(1)
+    buf = sock.get_once(1) || ''
     return :abort if buf != "\x00"
 
     # NOTE: We report this here, since we are awfully convinced now that this is really
@@ -256,7 +253,7 @@ class Metasploit3 < Msf::Auxiliary
 
     # Allow for slow echos
     1.upto(10) do
-      recv(self.sock, 0.10) unless @recvd.nil? or @recvd[/#{@password_prompt}/]
+      recv(self.sock, 0.10) unless @recvd.nil? || password_prompt?(@recvd)
     end
 
     vprint_status("#{rhost}:#{rport} Prompt: #{@recvd.gsub(/[\r\n\e\b\a]/, ' ')}")
@@ -329,8 +326,7 @@ class Metasploit3 < Msf::Auxiliary
     end
 
     report_auth_info(auth_info)
-    start_session(self, info, merge_me)
+    start_session(self, info, merge_me) if datastore['CreateSession']
 
   end
-
 end

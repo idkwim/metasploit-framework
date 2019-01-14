@@ -1,19 +1,37 @@
-shared_examples_for 'Msf::DBManager::Migration' do
-  it { should be_a Msf::DBManager::Migration }
+RSpec.shared_examples_for 'Msf::DBManager::Migration' do
+
+  if ENV['REMOTE_DB']
+    before {skip("Migration is not tested for a remoted DB")}
+  end
+
+  it { is_expected.to be_a Msf::DBManager::Migration }
+
+
+  context '#add_rails_engine_migration_paths' do
+    def add_rails_engine_migration_paths
+      db_manager.add_rails_engine_migration_paths
+    end
+
+    it 'should not add duplicate paths to ActiveRecord::Migrator.migrations_paths' do
+      add_rails_engine_migration_paths
+
+      expect {
+        add_rails_engine_migration_paths
+      }.to_not change {
+        ActiveRecord::Migrator.migrations_paths.length
+      }
+
+      expect(ActiveRecord::Migrator.migrations_paths.uniq).to eq ActiveRecord::Migrator.migrations_paths
+    end
+  end
 
   context '#migrate' do
     def migrate
       db_manager.migrate
     end
 
-    it 'should create a connection' do
-      ActiveRecord::Base.connection_pool.should_receive(:with_connection).twice
-
-      migrate
-    end
-
     it 'should call ActiveRecord::Migrator.migrate' do
-      ActiveRecord::Migrator.should_receive(:migrate).with(
+      expect(ActiveRecord::Migrator).to receive(:migrate).with(
           ActiveRecord::Migrator.migrations_paths
       )
 
@@ -22,13 +40,13 @@ shared_examples_for 'Msf::DBManager::Migration' do
 
     it 'should return migrations that were ran from ActiveRecord::Migrator.migrate' do
       migrations = [double('Migration 1')]
-      ActiveRecord::Migrator.stub(:migrate => migrations)
+      expect(ActiveRecord::Migrator).to receive(:migrate).and_return(migrations)
 
-      migrate.should == migrations
+      expect(migrate).to eq migrations
     end
 
     it 'should reset the column information' do
-      db_manager.should_receive(:reset_column_information)
+      expect(db_manager).to receive(:reset_column_information)
 
       migrate
     end
@@ -42,27 +60,27 @@ shared_examples_for 'Msf::DBManager::Migration' do
         "Error during migration"
       end
 
-      before(:each) do
-        ActiveRecord::Migrator.stub(:migrate).and_raise(error)
+      before(:example) do
+        expect(ActiveRecord::Migrator).to receive(:migrate).and_raise(error)
       end
 
       it 'should set Msf::DBManager#error' do
         migrate
 
-        db_manager.error.should == error
+        expect(db_manager.error).to eq error
       end
 
       it 'should log error message at error level' do
-        db_manager.should_receive(:elog) do |error_message|
-          error_message.should include(error.to_s)
+        expect(db_manager).to receive(:elog) do |error_message|
+          expect(error_message).to include(error.to_s)
         end
 
         migrate
       end
 
       it 'should log error backtrace at debug level' do
-        db_manager.should_receive(:dlog) do |debug_message|
-          debug_message.should include('Call stack')
+        expect(db_manager).to receive(:dlog) do |debug_message|
+          expect(debug_message).to include('Call stack')
         end
 
         migrate
@@ -80,7 +98,7 @@ shared_examples_for 'Msf::DBManager::Migration' do
         end
 
         it 'should set ActiveRecord::Migration.verbose to false' do
-          ActiveRecord::Migration.should_receive(:verbose=).with(verbose)
+          expect(ActiveRecord::Migration).to receive(:verbose=).with(verbose)
 
           migrate
         end
@@ -92,7 +110,7 @@ shared_examples_for 'Msf::DBManager::Migration' do
         end
 
         it 'should set ActiveRecord::Migration.verbose to true' do
-          ActiveRecord::Migration.should_receive(:verbose=).with(verbose)
+          expect(ActiveRecord::Migration).to receive(:verbose=).with(verbose)
 
           migrate
         end
@@ -101,7 +119,7 @@ shared_examples_for 'Msf::DBManager::Migration' do
 
     context 'without verbose' do
       it 'should set ActiveRecord::Migration.verbose to false' do
-        ActiveRecord::Migration.should_receive(:verbose=).with(false)
+        expect(ActiveRecord::Migration).to receive(:verbose=).with(false)
 
         db_manager.migrate
       end
@@ -109,8 +127,8 @@ shared_examples_for 'Msf::DBManager::Migration' do
   end
 
   context '#migrated' do
-    it { should respond_to :migrated }
-    it { should respond_to :migrated= }
+    it { is_expected.to respond_to :migrated }
+    it { is_expected.to respond_to :migrated= }
   end
 
   context '#reset_column_information' do
@@ -119,7 +137,7 @@ shared_examples_for 'Msf::DBManager::Migration' do
     end
 
     it 'should use ActiveRecord::Base.descendants to find both direct and indirect subclasses' do
-      ActiveRecord::Base.should_receive(:descendants).and_return([])
+      expect(ActiveRecord::Base).to receive(:descendants).and_return([])
 
       reset_column_information
     end
@@ -131,10 +149,10 @@ shared_examples_for 'Msf::DBManager::Migration' do
         descendants << double("Descendant #{i}")
       end
 
-      ActiveRecord::Base.stub(:descendants => descendants)
+      expect(ActiveRecord::Base).to receive(:descendants).and_return(descendants)
 
       descendants.each do |descendant|
-        descendant.should_receive(:reset_column_information)
+        expect(descendant).to receive(:reset_column_information)
       end
 
       reset_column_information

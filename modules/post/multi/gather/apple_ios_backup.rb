@@ -1,13 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
 require 'rex/parser/apple_backup_manifestdb'
 
-class Metasploit3 < Msf::Post
-
+class MetasploitModule < Msf::Post
   include Msf::Post::File
 
   def initialize(info={})
@@ -29,7 +27,7 @@ class Metasploit3 < Msf::Post
         OptBool.new('PLISTS', [false, 'Collect all preference list files?', true]),
         OptBool.new('IMAGES', [false, 'Collect all image files?', false]),
         OptBool.new('EVERYTHING', [false, 'Collect all stored files? (SLOW)', false])
-      ], self.class)
+      ])
   end
 
   #
@@ -38,12 +36,12 @@ class Metasploit3 < Msf::Post
   #
   def run
     case session.platform
-    when /osx/
+    when 'osx'
       @platform = :osx
       paths = enum_users_unix
-    when /win/
+    when 'windows'
       @platform = :windows
-      drive = session.fs.file.expand_path("%SystemDrive%")
+      drive = session.sys.config.getenv('SystemDrive')
       os = session.sys.config.sysinfo['OS']
 
       if os =~ /Windows 7|Vista|2008/
@@ -265,7 +263,7 @@ class Metasploit3 < Msf::Post
 
   def whoami
     if @platform == :windows
-      session.fs.file.expand_path("%USERNAME%")
+      session.sys.config.getenv('USERNAME')
     else
       session.shell_command("whoami").chomp
     end

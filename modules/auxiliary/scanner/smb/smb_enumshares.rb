@@ -1,16 +1,15 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
 require 'msf/core/auxiliary/report'
 
-class Metasploit3 < Msf::Auxiliary
+class MetasploitModule < Msf::Auxiliary
 
   # Exploit mixins should be called first
-  include Msf::Exploit::Remote::SMB
-  include Msf::Exploit::Remote::SMB::Authenticated
+  include Msf::Exploit::Remote::SMB::Client
+  include Msf::Exploit::Remote::SMB::Client::Authenticated
   include Msf::Exploit::Remote::DCERPC
 
   # Scanner mixin should be near last
@@ -32,7 +31,9 @@ class Metasploit3 < Msf::Auxiliary
         [
           'hdm',
           'nebulus',
-          'sinn3r'
+          'sinn3r',
+          'r3dy',
+          'altonjx'
         ],
       'License'        => MSF_LICENSE,
       'DefaultOptions' =>
@@ -43,15 +44,14 @@ class Metasploit3 < Msf::Auxiliary
 
     register_options(
       [
-        OptBool.new('DIR_SHARE',      [true, 'Show all the folders and files', false ]),
-        OptBool.new('USE_SRVSVC_ONLY', [true, 'List shares only with SRVSVC', false ])
-      ], self.class)
+        OptBool.new('SpiderShares',      [false, 'Spider shares recursively', false]),
+        OptBool.new('ShowFiles',        [true, 'Show detailed information when spidering', false]),
+        OptBool.new('SpiderProfiles',  [false, 'Spider only user profiles when share = C$', true]),
+        OptEnum.new('LogSpider',      [false, '0 = disabled, 1 = CSV, 2 = table (txt), 3 = one liner (txt)', 3, [0,1,2,3]]),
+        OptInt.new('MaxDepth',      [true, 'Max number of subdirectories to spider', 999]),
+      ])
 
     deregister_options('RPORT', 'RHOST')
-  end
-
-  def share_type(val)
-    [ 'DISK', 'PRINTER', 'DEVICE', 'IPC', 'SPECIAL', 'TEMPORARY' ][val]
   end
 
   def device_type_int_to_text(device_type)
@@ -74,7 +74,7 @@ class Metasploit3 < Msf::Auxiliary
     t.strftime("%m-%d-%Y %H:%M:%S")
   end
 
-  def eval_host(ip, share)
+  def eval_host(ip, share, subdir = "")
     read = write = false
 
     # srvsvc adds a null byte that needs to be removed
@@ -131,7 +131,7 @@ class Metasploit3 < Msf::Auxiliary
 
     return read,write,msg,nil if skip
 
-    rfd = self.simple.client.find_first("\\")
+    rfd = self.simple.client.find_first("#{subdir}\\*")
     read = true if rfd != nil
 
     # Test writable
@@ -167,175 +167,157 @@ class Metasploit3 < Msf::Auxiliary
     os_info
   end
 
-  def lanman_netshareenum(ip, rport, info)
-    shares = []
+  def get_user_dirs(ip, share, base, sub_dirs)
+    dirs = []
+    usernames = []
 
     begin
-      res = self.simple.client.trans(
-        "\\PIPE\\LANMAN",
-        (
-          [0x00].pack('v') +
-          "WrLeh\x00"   +
-          "B13BWz\x00"  +
-          [0x01, 65406].pack("vv")
-        ))
-    rescue ::Rex::Proto::SMB::Exceptions::ErrorCode => e
-      if e.error_code == 0xC00000BB
-        vprint_error("#{ip}:#{rport} - Got 0xC00000BB while enumerating shares, switching to srvsvc...")
-        datastore['USE_SRVSVC_ONLY'] = true # Make sure the module is aware of this state
-        return srvsvc_netshareenum(ip)
+      read,write,type,files = eval_host(ip, share, base)
+      # files or type could return nil due to various conditions
+      return dirs if files.nil?
+      files.each do |f|
+        if f[0] != "." and f[0] != ".."
+          usernames.push(f[0])
+        end
       end
+      usernames.each do |username|
+        sub_dirs.each do |sub_dir|
+          dirs.push("#{base}\\#{username}\\#{sub_dir}")
+        end
+      end
+      return dirs
+    rescue
+      return dirs
     end
-
-    return [] if res.nil?
-
-    lerror, lconv, lentries, lcount = res['Payload'].to_s[
-      res['Payload'].v['ParamOffset'],
-      res['Payload'].v['ParamCount']
-    ].unpack("v4")
-
-    data = res['Payload'].to_s[
-      res['Payload'].v['DataOffset'],
-      res['Payload'].v['DataCount']
-    ]
-
-    0.upto(lentries - 1) do |i|
-      sname,tmp = data[(i * 20) +  0, 14].split("\x00")
-      stype     = data[(i * 20) + 14, 2].unpack('v')[0]
-      scoff     = data[(i * 20) + 16, 2].unpack('v')[0]
-      scoff -= lconv if lconv != 0
-      scomm,tmp = data[scoff, data.length - scoff].split("\x00")
-      shares << [ sname, share_type(stype), scomm]
-    end
-
-    shares
   end
 
-  def srvsvc_netshareenum(ip)
-    shares = []
-    simple.connect("\\\\#{ip}\\IPC$")
-    handle = dcerpc_handle('4b324fc8-1670-01d3-1278-5a47bf6ee188', '3.0', 'ncacn_np', ["\\srvsvc"])
-    begin
-      dcerpc_bind(handle)
-    rescue Rex::Proto::SMB::Exceptions::ErrorCode => e
-      vprint_error("#{ip} : #{e.message}")
-      return []
+  def profile_options(ip, share)
+    old_dirs = ['My Documents','Desktop']
+    new_dirs = ['Desktop','Documents','Downloads','Music','Pictures','Videos']
+
+    dirs = get_user_dirs(ip, share, "Documents and Settings", old_dirs)
+    if dirs.blank?
+      dirs = get_user_dirs(ip, share, "Users", new_dirs)
     end
-
-    stubdata =
-      NDR.uwstring("\\\\#{ip}") +
-      NDR.long(1)  #level
-
-    ref_id = stubdata[0,4].unpack("V")[0]
-    ctr = [1, ref_id + 4 , 0, 0].pack("VVVV")
-
-    stubdata << ctr
-    stubdata << NDR.align(ctr)
-    stubdata << ["FFFFFFFF"].pack("H*")
-    stubdata << [ref_id + 8, 0].pack("VV")
-    response = dcerpc.call(0x0f, stubdata)
-    res = response.dup
-    win_error = res.slice!(-4, 4).unpack("V")[0]
-    if win_error != 0
-      raise "DCE/RPC error : Win_error = #{win_error + 0}"
-    end
-    #remove some uneeded data
-    res.slice!(0,12) # level, CTR header, Reference ID of CTR
-    share_count = res.slice!(0, 4).unpack("V")[0]
-    res.slice!(0,4) # Reference ID of CTR1
-    share_max_count = res.slice!(0, 4).unpack("V")[0]
-
-    raise "Dce/RPC error : Unknow situation encountered count != count max (#{share_count}/#{share_max_count})" if share_max_count != share_count
-
-    # RerenceID / Type / ReferenceID of Comment
-    types = res.slice!(0, share_count * 12).scan(/.{12}/n).map{|a| a[4,2].unpack("v")[0]}
-
-    share_count.times do |t|
-      length, offset, max_length = res.slice!(0, 12).unpack("VVV")
-      raise "Dce/RPC error : Unknow situation encountered offset != 0 (#{offset})" if offset != 0
-      raise "Dce/RPC error : Unknow situation encountered length !=max_length (#{length}/#{max_length})" if length != max_length
-      name = res.slice!(0, 2 * length).gsub('\x00','')
-      res.slice!(0,2) if length % 2 == 1 # pad
-
-      comment_length, comment_offset, comment_max_length = res.slice!(0, 12).unpack("VVV")
-      raise "Dce/RPC error : Unknow situation encountered comment_offset != 0 (#{comment_offset})" if comment_offset != 0
-      if comment_length != comment_max_length
-        raise "Dce/RPC error : Unknow situation encountered comment_length != comment_max_length (#{comment_length}/#{comment_max_length})"
-      end
-      comment = res.slice!(0, 2 * comment_length).gsub('\x00','')
-      res.slice!(0,2) if comment_length % 2 == 1 # pad
-
-      name    = Rex::Text.to_ascii(name)
-      s_type  = Rex::Text.to_ascii(share_type(types[t]))
-      comment = Rex::Text.to_ascii(comment)
-
-      shares << [ name, s_type, comment ]
-    end
-
-    shares
+    return dirs
   end
 
   def get_files_info(ip, rport, shares, info)
     read  = false
     write = false
 
+    # Creating a separate file for each IP address's results.
+    detailed_tbl = Rex::Text::Table.new(
+      'Header'  => "Spidered results for #{ip}.",
+      'Indent'  => 1,
+      'Columns' => [ 'IP Address', 'Type', 'Share', 'Path', 'Name', 'Created', 'Accessed', 'Written', 'Changed', 'Size' ]
+    )
+
+    logdata = ""
+
     list = shares.collect {|e| e[0]}
     list.each do |x|
-      read,write,type,files = eval_host(ip, x)
-      if files and (read or write)
-        header = "#{ip}:#{rport}"
-        if simple.client.default_domain and simple.client.default_name
-          header << " \\\\#{simple.client.default_domain}"
-        end
-        header << "\\#{simple.client.default_name}\\#{x}" if simple.client.default_name
-        header << " (#{type})" if type
-        header << " Readable"  if read
-        header << " Writable"  if write
-
-        tbl = Rex::Ui::Text::Table.new(
-          'Header'  => header,
-          'Indent'  => 1,
-          'Columns' => [ 'Type', 'Name', 'Created', 'Accessed', 'Written', 'Changed', 'Size' ]
-        )
-
-        f_types = {
-          1  => 'RO',  2  => 'HIDDEN', 4  => 'SYS', 8   => 'VOL',
-          16 => 'DIR', 32 => 'ARC',    64 => 'DEV', 128 => 'FILE'
-        }
-
-        files.each do |file|
-          if file[0] and file[0] != '.' and file[0] != '..'
-            info  = file[1]['info']
-            fa    = f_types[file[1]['attr']]       # Item type
-            fname = file[0]                        # Filename
-            tcr   = to_unix_time(info[3], info[2]) # Created
-            tac   = to_unix_time(info[5], info[4]) # Accessed
-            twr   = to_unix_time(info[7], info[6]) # Written
-            tch   = to_unix_time(info[9], info[8]) # Changed
-            sz    = info[12] + info[13]            # Size
-
-            # Filename is too long for the UI table, cut it.
-            fname = "#{fname[0, 35]}..." if fname.length > 35
-
-            tbl << [fa || 'Unknown', fname, tcr, tac, twr, tch, sz]
+      x = x.strip
+      if x == "ADMIN$" or x == "IPC$"
+        next
+      end
+      if not datastore['ShowFiles']
+        print_status("Spidering #{x}.")
+      end
+      subdirs = [""]
+      if x.strip() == "C$" and datastore['SpiderProfiles']
+        subdirs = profile_options(ip, x)
+      end
+      while subdirs.length > 0
+        depth = subdirs[0].count("\\")
+        if datastore['SpiderProfiles'] and x == "C$"
+          if depth-2 > datastore['MaxDepth']
+            subdirs.shift
+            next
+          end
+        else
+          if depth > datastore['MaxDepth']
+            subdirs.shift
+            next
           end
         end
+        read,write,type,files = eval_host(ip, x, subdirs[0])
+        if files and (read or write)
+          if files.length < 3
+            subdirs.shift
+            next
+          end
+          header = ""
+          if simple.client.default_domain and simple.client.default_name
+            header << " \\\\#{simple.client.default_domain}"
+          end
+          header << "\\#{x.sub("C$","C$\\")}" if simple.client.default_name
+          header << subdirs[0]
 
-        print_good(tbl.to_s)
-        unless tbl.rows.empty?
-          p = store_loot('smb.shares', 'text/csv', ip, tbl.to_csv)
-          print_good("#{x} info saved in: #{p.to_s}")
+          pretty_tbl = Rex::Text::Table.new(
+            'Header'  => header,
+            'Indent'  => 1,
+            'Columns' => [ 'Type', 'Name', 'Created', 'Accessed', 'Written', 'Changed', 'Size' ]
+          )
+
+          f_types = {
+            1  => 'RO',  2  => 'HIDDEN', 4  => 'SYS', 8   => 'VOL',
+            16 => 'DIR', 32 => 'ARC',    64 => 'DEV', 128 => 'FILE'
+          }
+
+          files.each do |file|
+            if file[0] and file[0] != '.' and file[0] != '..'
+              info  = file[1]['info']
+              fa    = f_types[file[1]['attr']]       # Item type
+              fname = file[0]                        # Filename
+              tcr   = to_unix_time(info[3], info[2]) # Created
+              tac   = to_unix_time(info[5], info[4]) # Accessed
+              twr   = to_unix_time(info[7], info[6]) # Written
+              tch   = to_unix_time(info[9], info[8]) # Changed
+              sz    = info[12] + info[13]            # Size
+
+              # Filename is too long for the UI table, cut it.
+              fname = "#{fname[0, 35]}..." if fname.length > 35
+
+              # Add subdirectories to list to use if SpiderShare is enabled.
+              if fa == "DIR" or (fa == nil and sz == 0)
+                subdirs.push(subdirs[0] + "\\" + fname)
+              end
+
+              pretty_tbl << [fa || 'Unknown', fname, tcr, tac, twr, tch, sz]
+              detailed_tbl << ["#{ip}", fa || 'Unknown', "#{x}", subdirs[0] + "\\", fname, tcr, tac, twr, tch, sz]
+              logdata << "#{ip}\\#{x.sub("C$","C$\\")}#{subdirs[0]}\\#{fname}\n"
+
+            end
+          end
+          print_good(pretty_tbl.to_s) if datastore['ShowFiles']
         end
+        subdirs.shift
+      end
+    print_status("Spider #{x} complete.") unless datastore['ShowFiles']
+    end
+    unless detailed_tbl.rows.empty?
+      if datastore['LogSpider'] == '1'
+        p = store_loot('smb.enumshares', 'text/csv', ip, detailed_tbl.to_csv)
+        print_good("info saved in: #{p.to_s}")
+      elsif datastore['LogSpider'] == '2'
+        p = store_loot('smb.enumshares', 'text/plain', ip, detailed_tbl)
+        print_good("info saved in: #{p.to_s}")
+      elsif datastore['LogSpider'] == '3'
+        p = store_loot('smb.enumshares', 'text/plain', ip, logdata)
+        print_good("info saved in: #{p.to_s}")
       end
     end
   end
 
-  def cleanup
-    datastore['RPORT']           = @rport
-    datastore['SMBDirect']       = @smb_redirect
-    datastore['USE_SRVSVC_ONLY'] = @srvsvc
+  def rport
+    @rport || datastore['RPORT']
   end
 
+  # Overrides the one in smb.rb
+  def smb_direct
+    @smb_redirect || datastore['SMBDirect']
+  end
 
   def run_host(ip)
     @rport        = datastore['RPORT']
@@ -344,26 +326,24 @@ class Metasploit3 < Msf::Auxiliary
     shares        = []
 
     [[139, false], [445, true]].each do |info|
-      datastore['RPORT']     = info[0]
-      datastore['SMBDirect'] = info[1]
+      @rport        = info[0]
+      @smb_redirect = info[1]
 
       begin
-        connect
+        connect(versions: [2,1])
         smb_login
-        if datastore['USE_SRVSVC_ONLY']
-          shares = srvsvc_netshareenum(ip)
-        else
-          shares = lanman_netshareenum(ip, rport, info)
-        end
+        shares = smb_netshareenumall
 
         os_info     = get_os_info(ip, rport)
-        print_status("#{ip}:#{rport} - #{os_info}") if os_info
+        print_status(os_info) if os_info
 
         if shares.empty?
-          print_status("#{ip}:#{rport} - No shares collected")
+          print_status("No shares collected")
         else
-          shares_info = shares.map{|x| "#{x[0]} - #{x[2]} (#{x[1]})" }.join(", ")
-          print_status("#{ip}:#{rport} - #{shares_info}")
+          shares_info = shares.map{|x| "#{x[0]} - (#{x[1]}) #{x[2]}" }.join(", ")
+          shares_info.split(", ").each { |share|
+            print_good share
+          }
           report_note(
             :host   => ip,
             :proto  => 'tcp',
@@ -373,7 +353,7 @@ class Metasploit3 < Msf::Auxiliary
             :update => :unique_data
           )
 
-          if datastore['DIR_SHARE']
+          if datastore['SpiderShares']
             get_files_info(ip, rport, shares, info)
           end
 
@@ -384,7 +364,7 @@ class Metasploit3 < Msf::Auxiliary
         raise $!
       rescue ::Rex::Proto::SMB::Exceptions::LoginError,
         ::Rex::Proto::SMB::Exceptions::ErrorCode => e
-        print_error("#{ip}:#{rport} - #{e.message}")
+        print_error(e.message)
         return if e.message =~ /STATUS_ACCESS_DENIED/
       rescue Errno::ECONNRESET,
         ::Rex::Proto::SMB::Exceptions::InvalidType,
@@ -392,7 +372,7 @@ class Metasploit3 < Msf::Auxiliary
         ::Rex::Proto::SMB::Exceptions::InvalidCommand,
         ::Rex::Proto::SMB::Exceptions::InvalidWordCount,
         ::Rex::Proto::SMB::Exceptions::NoReply => e
-        vprint_error("#{ip}:#{rport} - #{e.message}")
+        vprint_error(e.message)
         next if not shares.empty? and rport == 139 # no results, try again
       rescue Errno::ENOPROTOOPT
         print_status("Wait 5 seconds before retrying...")
@@ -401,7 +381,7 @@ class Metasploit3 < Msf::Auxiliary
       rescue ::Exception => e
         next if e.to_s =~ /execution expired/
         next if not shares.empty? and rport == 139
-        vprint_error("#{ip}:#{rport} - Error: '#{ip}' '#{e.class}' '#{e.to_s}'")
+        vprint_error("Error: '#{ip}' '#{e.class}' '#{e.to_s}'")
       ensure
         disconnect
       end
@@ -411,3 +391,4 @@ class Metasploit3 < Msf::Auxiliary
     end
   end
 end
+

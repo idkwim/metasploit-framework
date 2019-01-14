@@ -1,13 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-
-class Metasploit3 < Msf::Auxiliary
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::Tcp
   include Msf::Auxiliary::Dos
 
@@ -47,7 +43,7 @@ class Metasploit3 < Msf::Auxiliary
   def check
     # http://blog.nodejs.org/2013/08/21/node-v0-10-17-stable/
     # check if we are < 0.10.17 by seeing if a malformed HTTP request is accepted
-    status = Exploit::CheckCode::Unknown
+    status = Exploit::CheckCode::Safe
     connect
     sock.put(http_request("GEM"))
     begin
@@ -56,6 +52,8 @@ class Metasploit3 < Msf::Auxiliary
     rescue EOFError
       # checking against >= 0.10.17 raises EOFError because there is no
       # response to GEM requests
+      vprint_error("Failed to determine the vulnerable state due to an EOFError (no response)")
+      return Msf::Exploit::CheckCode::Unknown
     ensure
       disconnect
     end

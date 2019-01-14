@@ -1,13 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-
-class Metasploit3 < Msf::Encoder::Xor
+class MetasploitModule < Msf::Encoder::Xor
 
   def initialize
     super(
@@ -28,6 +24,12 @@ class Metasploit3 < Msf::Encoder::Xor
   # the buffer being encoded
   #
   def decoder_stub(state)
+
+    # Sanity check that saved_registers doesn't overlap with modified_registers
+    if (modified_registers & saved_registers).length > 0
+      raise BadGenerateError
+    end
+
     decoder =
       Rex::Arch::X86.sub(-(((state.buf.length - 1) / 4) + 1), Rex::Arch::X86::ECX,
         state.badchars) +
@@ -44,4 +46,18 @@ class Metasploit3 < Msf::Encoder::Xor
     return decoder
   end
 
+  # Indicate that this module can preserve some registers
+  def can_preserve_registers?
+    true
+  end
+
+  # A list of registers always touched by this encoder
+  def modified_registers
+    [ Rex::Arch::X86::ECX, Rex::Arch::X86::EAX, Rex::Arch::X86::ESI ]
+  end
+
+  # Convert the SaveRegisters to an array of x86 register constants
+  def saved_registers
+    Rex::Arch::X86.register_names_to_ids(datastore['SaveRegisters'])
+  end
 end

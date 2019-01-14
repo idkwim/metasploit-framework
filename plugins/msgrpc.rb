@@ -1,14 +1,9 @@
-#!/usr/bin/env ruby
-#
-# $Id$
 #
 # This plugin provides an msf daemon interface that spawns a listener on a
 # defined port (default 55552) and gives each connecting client its own
 # console interface.  These consoles all share the same framework instance.
 # Be aware that the console instance that spawns on the port is entirely
 # unauthenticated, so realize that you have been warned.
-#
-# $Revision$
 #
 
 require "msf/core/rpc/v10/service"
@@ -26,29 +21,30 @@ class Plugin::MSGRPC < Msf::Plugin
   #
   # The default local hostname that the server listens on.
   #
-  DefaultHost = "127.0.0.1"
+  DefaultHost ||= "127.0.0.1"
 
   #
   # The default local port that the server listens on.
   #
-  DefaultPort = 55552
+  DefaultPort ||= 55552
 
   #
   # ServerPort
   #
-  # 	The local port to listen on for connections.  The default is 55553
+  # 	The local port to listen on for connections.  The default is 55552
   #
   def initialize(framework, opts)
     super
 
     host = opts['ServerHost'] || DefaultHost
     port = opts['ServerPort'] || DefaultPort
-    ssl  = (opts['SSL'] and opts['SSL'].to_s =~ /^[ty]/i) ? true : false
+    ssl  = (opts['SSL'] && opts['SSL'].to_s =~ /^[ty]/i) ? true : false
     cert = opts['SSLCert']
 
     user = opts['User'] || "msf"
     pass = opts['Pass'] || ::Rex::Text.rand_text_alphanumeric(8)
     uri  = opts['URI'] || "/api"
+    timeout = opts['TokenTimeout'] || 300
 
     print_status("MSGRPC Service:  #{host}:#{port} #{ssl ? " (SSL)" : ""}")
     print_status("MSGRPC Username: #{user}")
@@ -60,14 +56,15 @@ class Plugin::MSGRPC < Msf::Plugin
       :ssl    => ssl,
       :cert   => cert,
       :uri    => uri,
-      :tokens => { }
+      :tokens => { },
+      :token_timeout => timeout
     })
 
     self.server.add_user(user, pass)
 
     # If the run in foreground flag is not specified, then go ahead and fire
     # it off in a worker thread.
-    if (opts['RunInForeground'] != true)
+    unless opts['RunInForeground'] == true
       # Store a handle to the thread so we can kill it during
       # cleanup when we get unloaded.
       self.thread = Thread.new { run }

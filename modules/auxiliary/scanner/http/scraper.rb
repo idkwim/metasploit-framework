@@ -1,13 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-
-class Metasploit3 < Msf::Auxiliary
+class MetasploitModule < Msf::Auxiliary
 
   # Exploit mixins should be called first
   include Msf::Exploit::Remote::HttpClient
@@ -19,17 +15,17 @@ class Metasploit3 < Msf::Auxiliary
   def initialize
     super(
       'Name'        => 'HTTP Page Scraper',
-      'Description' => 'Scrap defined data from a specific web page based on a regular expresion',
-      'Author'       => ['et'],
+      'Description' => 'Scrape defined data from a specific web page based on a regular expression',
+      'Author'      => ['et'],
       'License'     => MSF_LICENSE
     )
 
     register_options(
       [
         OptString.new('PATH', [ true,  "The test path to the page to analize", '/']),
-        OptRegexp.new('PATTERN', [ true,  "The regex to use (default regex is a sample to grab page title)", %r{<title>(.*)</title>}i])
+        OptRegexp.new('PATTERN', [ true,  "The regex to use (default regex is a sample to grab page title)", '<title>(.*)</title>'])
 
-      ], self.class)
+      ])
 
   end
 
@@ -58,7 +54,15 @@ class Metasploit3 < Msf::Auxiliary
       result = res.body.scan(datastore['PATTERN']).flatten.map{ |s| s.strip }.uniq
 
       result.each do |u|
-        print_status("[#{target_host}] #{tpath} [#{u}]")
+        print_good("[#{target_host}] #{tpath} [#{u}]")
+
+        report_note(
+          :host    => target_host,
+          :port    => rport,
+          :proto   => 'tcp',
+          :type    => "http.scraper.#{rport}",
+          :data    => u
+        )
 
         report_web_vuln(
           :host	=> target_host,

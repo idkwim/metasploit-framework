@@ -1,13 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
+module MetasploitModule
 
-require 'msf/core'
-
-
-module Metasploit3
+  CachedSize = 272
 
   include Msf::Payload::Windows
   include Msf::Payload::Single
@@ -32,7 +30,7 @@ module Metasploit3
         OptString.new('TITLE', [ true, "Messagebox Title (max 255 chars)", "MessageBox" ]),
         OptString.new('TEXT', [ true, "Messagebox Text (max 255 chars)", "Hello, from MSF!" ]),
         OptString.new('ICON', [ true, "Icon type can be NO, ERROR, INFORMATION, WARNING or QUESTION", "NO" ])
-      ], self.class)
+      ])
   end
 
   #
@@ -86,13 +84,18 @@ EOS
   call [ebp+8]	;ExitProcess/Thread(0)
 EOS
 
-    # if exit is set to seh, overrule
+    # if exit is set to seh or none, overrule
     if datastore['EXITFUNC'].upcase.strip == "SEH"
       # routine to exit via exception
       doexit = <<EOS
   xor eax,eax
   call eax
 EOS
+      getexitfunc = ''
+    elsif datastore['EXITFUNC'].upcase.strip == "NONE"
+      doexit = <<-EOS
+      nop
+      EOS
       getexitfunc = ''
     end
 
@@ -232,6 +235,7 @@ start_main:
   push 0x41206c6c
   push 0x642e3233
   push 0x72657375    	;user32.dll
+  xor bl,bl           ;make sure we have a null byte
   mov [esp+0xA],bl		;null byte
   mov esi,esp			;put pointer to string on top of stack
   push esi
@@ -290,5 +294,4 @@ EOS
 
     pushes
   end
-
 end

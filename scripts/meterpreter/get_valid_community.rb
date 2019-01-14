@@ -1,3 +1,9 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
 
 #copied getvncpw - thanks grutz/carlos
 
@@ -32,7 +38,7 @@ end
   end
 }
 
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   print_status("Searching for community strings...")
   strs = get_community(session)
   if strs

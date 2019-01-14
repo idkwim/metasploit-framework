@@ -1,14 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'rex'
-require 'msf/core'
 require 'msf/core/auxiliary/report'
 
-class Metasploit3 < Msf::Post
-
+class MetasploitModule < Msf::Post
   include Msf::Post::File
   include Msf::Post::Windows::Registry
   include Msf::Auxiliary::Report
@@ -56,7 +53,7 @@ class Metasploit3 < Msf::Post
 
     print_status("Done, Databases Found.")
 
-    tbl = Rex::Ui::Text::Table.new(
+    tbl = Rex::Text::Table.new(
       'Header'  => "Installed Databases",
       'Indent'  => 1,
       'Columns' =>
@@ -74,7 +71,7 @@ class Metasploit3 < Msf::Post
 
     print_line(tbl.to_s)
     p = store_loot("host.databases", "text/plain", session, tbl.to_s, "databases.txt", "Running Databases")
-    print_status("Results stored in: #{p}")
+    print_good("Results stored in: #{p}")
 
   end
 
@@ -292,7 +289,7 @@ class Metasploit3 < Msf::Post
       return results
     end
 
-    windir = session.fs.file.expand_path("%windir%")
+    windir = session.sys.config.getenv('windir')
     getfile = session.fs.file.search(windir + "\\system32\\drivers\\etc\\","services.*",recurse=true,timeout=-1)
 
     data = nil
@@ -332,7 +329,7 @@ class Metasploit3 < Msf::Post
     elsif exist?(val_location + "\\my.cnf")
       data = read_file(val_location + "\\my.cnf")
     else
-      sysdriv=session.fs.file.expand_path("%SYSTEMDRIVE%")
+      sysdriv=session.sys.config.getenv('SYSTEMDRIVE')
       getfile = session.fs.file.search(sysdriv + "\\","my.ini",recurse=true,timeout=-1)
       getfile.each do |file|
         if exist?("#{file['path']}\\#{file['name']}")
@@ -343,6 +340,5 @@ class Metasploit3 < Msf::Post
     end
     return data
   end
-
 end
 

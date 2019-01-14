@@ -1,3 +1,11 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
+
 # Author:Roni Bachar (@roni_bachar) roni.bachar.blog@gmail.com
 #
 # Thie script will open an interactive view of remote hosts
@@ -52,7 +60,7 @@ def wrong_meter_version(meter = meter_type)
 end
 
 # Check for Version of Meterpreter
-wrong_meter_version(meter_type) if meter_type !~ /win32|win64/i
+wrong_meter_version(meter_type) if meter_type != 'windows'
 session = client
 
 

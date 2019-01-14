@@ -1,23 +1,19 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Auxiliary::Dos
   include Msf::Exploit::Capture
   include Exploit::Remote::Tcp
 
   def initialize(info = {})
     super(update_info(info,
-      'Name'		=> 'OpenSSL < 0.9.8i DTLS ChangeCipherSpec Remote DoS',
+      'Name'		=> 'OpenSSL DTLS ChangeCipherSpec Remote DoS',
       'Description'	=> %q{
           This module performs a Denial of Service Attack against Datagram TLS in OpenSSL
-        version 0.9.8i and earlier. OpenSSL crashes under these versions when it recieves a
+        version 0.9.8i and earlier. OpenSSL crashes under these versions when it receives a
         ChangeCipherspec Datagram before a ClientHello.
       },
       'Author'	=> [

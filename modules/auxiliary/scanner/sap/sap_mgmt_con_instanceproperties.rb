@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit4 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::Scanner
@@ -31,7 +28,7 @@ class Metasploit4 < Msf::Auxiliary
       [
         Opt::RPORT(50013),
         OptString.new('URI', [false, 'Path to the SAP Management Console ', '/']),
-      ], self.class)
+      ])
     register_autofilter_ports([ 50013 ])
     deregister_options('RHOST')
   end
@@ -234,12 +231,14 @@ class Metasploit4 < Msf::Auxiliary
       if webmethods
         webmethods_output = [] # create empty webmethods array
         webmethods_arr = webmethods.split(",")
-        print_good("#{rhost}:#{rport} [SAP] Unprotected Webmethods :::")
         webmethods_arr.each do | webm |
           # Only add webmethods not found in protectedweb_arr
-          webmethods_output << webm if not protectedweb_arr.include?(webm)
+          webmethods_output << webm unless protectedweb_arr && protectedweb_arr.include?(webm)
         end
-        print_status("#{webmethods_output.join(',')}") if webmethods_output
+        if webmethods_output
+          print_good("#{rhost}:#{rport} [SAP] Unprotected Webmethods :::")
+          print_status("#{webmethods_output.join(',')}")
+        end
         report_note(:host => rhost,
               :proto => 'tcp',
               :port => rport,

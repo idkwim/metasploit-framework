@@ -1,14 +1,23 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-require 'zip/zip' #for extracting files
-require 'rex/zip' #for creating files
+#
+# Gems
+#
 
-class Metasploit3 < Msf::Post
+# for extracting files
+require 'zip'
 
+#
+# Project
+#
+
+# for creating files
+require 'rex/zip'
+
+class MetasploitModule < Msf::Post
   include Msf::Post::File
   include Msf::Post::Windows::Priv
 
@@ -39,7 +48,7 @@ class Metasploit3 < Msf::Post
           OptAddress.new('SMBHOST',[true, 'Server IP or hostname that the .docx document points to']),
           OptString.new('FILE', [true, 'Remote file to inject UNC path into. ']),
           OptBool.new('BACKUP', [true, 'Make local backup of remote file.', true]),
-      ], self.class)
+      ])
   end
 
   #Store MACE values so we can set them later again.
@@ -109,17 +118,17 @@ class Metasploit3 < Msf::Post
   end
 
   #RubyZip sometimes corrupts the document when manipulating inside a
-  #compressed document, so we extract it with Zip::ZipFile into memory
+  #compressed document, so we extract it with Zip::File into memory
   def unzip_docx(zipfile)
     vprint_status("Extracting #{datastore['FILE']} into memory.")
     zip_data = Hash.new
     begin
-      Zip::ZipFile.open(zipfile)  do |filezip|
+      Zip::File.open(zipfile)  do |filezip|
         filezip.each do |entry|
           zip_data[entry.name] = filezip.read(entry)
         end
       end
-    rescue Zip::ZipError => e
+    rescue Zip::Error => e
       print_error("Error extracting #{datastore['FILE']} please verify it is a valid .docx document.")
       return nil
     end

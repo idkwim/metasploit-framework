@@ -1,17 +1,13 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-
-
-class Metasploit3 < Msf::Auxiliary
+class MetasploitModule < Msf::Auxiliary
 
   # Exploit mixins should be called first
-  include Msf::Exploit::Remote::SMB
-  include Msf::Exploit::Remote::SMB::Authenticated
+  include Msf::Exploit::Remote::SMB::Client
+  include Msf::Exploit::Remote::SMB::Client::Authenticated
 
   include Msf::Exploit::Remote::DCERPC
 
@@ -21,7 +17,7 @@ class Metasploit3 < Msf::Auxiliary
 
   def initialize
     super(
-      'Name'        => 'SMB Local User Enumeration (LookupSid)',
+      'Name'        => 'SMB SID User Enumeration (LookupSid)',
       'Description' => 'Determine what users exist via brute force SID lookups.
         This module can enumerate both local and domain accounts by setting
         ACTION to either LOCAL or DOMAIN',
@@ -29,6 +25,8 @@ class Metasploit3 < Msf::Auxiliary
       'License'     => MSF_LICENSE,
       'DefaultOptions' =>
         {
+          # Samba doesn't like this option, so we disable so we are compatible with
+          # both Windows and Samba for enumeration.
           'DCERPC::fake_bind_multi' => false
         },
       'Actions'     =>
@@ -41,6 +39,7 @@ class Metasploit3 < Msf::Auxiliary
 
     register_options(
       [
+        OptInt.new('MinRID', [ false, "Starting RID to check", 500 ]),
         OptInt.new('MaxRID', [ false, "Maximum RID to check", 4000 ])
       ],
       self.class
@@ -49,6 +48,18 @@ class Metasploit3 < Msf::Auxiliary
     deregister_options('RPORT', 'RHOST')
   end
 
+  # Constants used by this module
+  LSA_UUID     = '12345778-1234-abcd-ef00-0123456789ab'
+  LSA_VERS     = '0.0'
+  LSA_PIPES    = %W{ LSARPC NETLOGON SAMR BROWSER SRVSVC }
+
+  def rport
+    @rport || datastore['RPORT']
+  end
+
+  def smb_direct
+    @smbdirect || datastore['SMBDirect']
+  end
 
   # Locate an available SMB PIPE for the specified service
   def smb_find_dcerpc_pipe(uuid, vers, pipes)
@@ -128,24 +139,18 @@ class Metasploit3 < Msf::Auxiliary
     [ uinfo[3], name ]
   end
 
-
-  @@lsa_uuid     = '12345778-1234-abcd-ef00-0123456789ab'
-  @@lsa_vers     = '0.0'
-  @@lsa_pipes    = %W{ LSARPC NETLOGON SAMR BROWSER SRVSVC }
-
   # Fingerprint a single host
   def run_host(ip)
-
     [[139, false], [445, true]].each do |info|
 
-    datastore['RPORT'] = info[0]
-    datastore['SMBDirect'] = info[1]
+    @rport = info[0]
+    @smbdirect = info[1]
 
     lsa_pipe   = nil
     lsa_handle = nil
     begin
       # find the lsarpc pipe
-      lsa_pipe = smb_find_dcerpc_pipe(@@lsa_uuid, @@lsa_vers, @@lsa_pipes)
+      lsa_pipe = smb_find_dcerpc_pipe(LSA_UUID, LSA_VERS, LSA_PIPES)
       break if not lsa_pipe
 
       # OpenPolicy2()
@@ -169,7 +174,7 @@ class Metasploit3 < Msf::Auxiliary
       resp = dcerpc.last_response ? dcerpc.last_response.stub_data : nil
 
       if ! (resp and resp.length == 24)
-        print_error("#{ip} Invalid response from the OpenPolicy request")
+        print_error("Invalid response from the OpenPolicy request")
         disconnect
         return
       end
@@ -184,7 +189,7 @@ class Metasploit3 < Msf::Auxiliary
       end
 
       if(perror != 0)
-        print_error("#{ip} Received error #{"0x%.8x" % perror} from the OpenPolicy2 request")
+        print_error("Received error #{"0x%.8x" % perror} from the OpenPolicy2 request")
         disconnect
         return
       end
@@ -201,10 +206,8 @@ class Metasploit3 < Msf::Auxiliary
       resp = dcerpc.last_response ? dcerpc.last_response.stub_data : nil
       domain_sid, domain_name = smb_parse_sid(resp)
 
-
       # Store SID, local domain name, joined domain name
-      print_status("#{ip} PIPE(#{lsa_pipe}) LOCAL(#{host_name} - #{host_sid}) DOMAIN(#{domain_name} - #{domain_sid})")
-
+      print_status("PIPE(#{lsa_pipe}) LOCAL(#{host_name} - #{host_sid}) DOMAIN(#{domain_name} - #{domain_sid})")
 
       domain = {
         :name    => host_name,
@@ -213,10 +216,21 @@ class Metasploit3 < Msf::Auxiliary
         :groups  => {}
       }
 
-      target_sid = host_sid if action.name =~ /LOCAL/i
-      target_sid = domain_sid if action.name =~ /DOMAIN/i
+      target_sid = case action.name.upcase
+      when 'LOCAL'
+        host_sid
+      when 'DOMAIN'
+        # Fallthrough to the host SID if no domain SID was returned
+        unless domain_sid
+          print_error("No domain SID identified, falling back to the local SID...")
+        end
+        domain_sid || host_sid
+      end
+
+      min_rid = datastore['MinRID']
       # Brute force through a common RID range
-      500.upto(datastore['MaxRID'].to_i) do |rid|
+
+      min_rid.upto(datastore['MaxRID']) do |rid|
 
         stub =
           phandle +
@@ -231,7 +245,6 @@ class Metasploit3 < Msf::Auxiliary
           NDR.long(0) +
           NDR.long(1) +
           NDR.long(0)
-
 
         dcerpc.call(15, stub)
         resp = dcerpc.last_response ? dcerpc.last_response.stub_data : nil
@@ -249,13 +262,13 @@ class Metasploit3 < Msf::Auxiliary
         utype,uname = smb_parse_sid_lookup(resp)
         case utype
         when 1
-          print_status("#{ip} USER=#{uname} RID=#{rid}")
+          print_status("USER=#{uname} RID=#{rid}")
           domain[:users][rid] = uname
         when 2
           domain[:groups][rid] = uname
-          print_status("#{ip} GROUP=#{uname} RID=#{rid}")
+          print_status("GROUP=#{uname} RID=#{rid}")
         else
-          print_status("#{ip} TYPE=#{utype} NAME=#{uname} rid=#{rid}")
+          print_status("TYPE=#{utype} NAME=#{uname} rid=#{rid}")
         end
       end
 
@@ -263,16 +276,15 @@ class Metasploit3 < Msf::Auxiliary
       report_note(
         :host => ip,
         :proto => 'tcp',
-        :port => datastore['RPORT'],
+        :port => rport,
         :type => 'smb.domain.lookupsid',
         :data => domain
       )
 
-      print_status("#{ip} #{domain[:name].upcase} [#{domain[:users].keys.map{|k| domain[:users][k]}.join(", ")} ]")
-
-      # cleanup
+      print_status("#{domain[:name].upcase} [#{domain[:users].keys.map{|k| domain[:users][k]}.join(", ")} ]")
       disconnect
       return
+
     rescue ::Timeout::Error
     rescue ::Interrupt
       raise $!
@@ -280,10 +292,8 @@ class Metasploit3 < Msf::Auxiliary
     rescue ::Rex::Proto::SMB::Exceptions::LoginError
       next
     rescue ::Exception => e
-      print_line("Error: #{ip} #{e.class} #{e}")
+      print_line("Error: #{e.class} #{e}")
     end
     end
   end
-
-
 end

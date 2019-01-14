@@ -1,10 +1,8 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
 require 'msf/core/handler/bind_tcp'
 
 
@@ -16,7 +14,9 @@ require 'msf/core/handler/bind_tcp'
 # Linux bind TCP stager.
 #
 ###
-module Metasploit3
+module MetasploitModule
+
+  CachedSize = 232
 
   include Msf::Payload::Stager
 
@@ -33,7 +33,7 @@ module Metasploit3
         {
           'Offsets' =>
             {
-              'LPORT' => [ 226, 'n'    ],
+              'LPORT' => [ 214, 'n'    ],
             },
           'Payload' =>
           [
@@ -110,9 +110,6 @@ module Metasploit3
     # Transmit our intermediate stager
     conn.put( [ payload.length ].pack(address_format) )
 
-    Rex::ThreadSafe.sleep(0.5)
-
     return true
   end
-
 end

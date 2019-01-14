@@ -1,12 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
 require 'msf/core/exploit/tcp'
 
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Exploit::Remote::Tcp
   include Msf::Auxiliary::Scanner
   include Msf::Auxiliary::Report
@@ -63,7 +62,7 @@ class Metasploit3 < Msf::Auxiliary
       banner << " Certificate:#{cert.subject.to_s}"
     end
 
-    print_status "#{rhost}:#{rport} Banner: #{banner}"
+    print_good "#{rhost}:#{rport} Banner: #{banner}"
 
     report_service(
       :host  => rhost,
@@ -84,7 +83,7 @@ class Metasploit3 < Msf::Auxiliary
 
   def do_login(user, pass, nsock=self.sock)
     nsock.put("USER #{user}\r\n")
-    res = nsock.get_once
+    res = nsock.get_once || ''
     unless res.start_with? "331"
       ret_msg = "Unexpected reply to the USER command: #{res}"
       return ret_msg

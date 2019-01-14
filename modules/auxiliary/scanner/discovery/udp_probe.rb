@@ -1,14 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
 require 'openssl'
 
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::Scanner
 
@@ -23,12 +20,12 @@ class Metasploit3 < Msf::Auxiliary
     register_options(
       [
         Opt::CHOST,
-      ], self.class)
+      ])
 
     register_advanced_options(
       [
         OptBool.new('RANDOMIZE_PORTS', [false, 'Randomize the order the ports are probed', true])
-      ], self.class)
+      ])
 
     # Intialize the probes array
     @probes = []
@@ -46,6 +43,7 @@ class Metasploit3 < Msf::Auxiliary
     @probes << 'probe_pkt_citrix'
     @probes << 'probe_pkt_pca_st'
     @probes << 'probe_pkt_pca_nq'
+    @probes << 'probe_chargen'
 
   end
 
@@ -124,7 +122,7 @@ class Metasploit3 < Msf::Auxiliary
       end
 
       report_service(conf)
-      print_status("Discovered #{data[:app]} on #{k} (#{data[:info]})")
+      print_good("Discovered #{data[:app]} on #{k} (#{data[:info]})")
     end
   end
 
@@ -203,6 +201,11 @@ class Metasploit3 < Msf::Auxiliary
     return if @results[hkey]
 
     case pkt[2]
+
+      when 19
+        app = 'chargen'
+        return unless chargen_parse(pkt[0])
+        @results[hkey] = true
 
       when 53
         app = 'DNS'
@@ -349,7 +352,7 @@ class Metasploit3 < Msf::Auxiliary
       :info  => inf
     )
 
-    print_status("Discovered #{app} on #{pkt[1]}:#{pkt[2]} (#{inf})")
+    print_good("Discovered #{app} on #{pkt[1]}:#{pkt[2]} (#{inf})")
 
   end
 
@@ -360,6 +363,13 @@ class Metasploit3 < Msf::Auxiliary
   def db2disco_parse(data)
     res = data.split("\x00")
     "#{res[2]}_#{res[1]}"
+  end
+
+  #
+  # Validate a chargen packet.
+  #
+  def chargen_parse(data)
+    data =~ /ABCDEFGHIJKLMNOPQRSTUVWXYZ|0123456789/i
   end
 
   #
@@ -396,6 +406,11 @@ class Metasploit3 < Msf::Auxiliary
   #
   # The probe definitions
   #
+
+  def probe_chargen(ip)
+    pkt = Rex::Text.rand_text_alpha_lower(1)
+    return [pkt, 19]
+  end
 
   def probe_pkt_dns(ip)
     data = [rand(0xffff)].pack('n') +
@@ -455,36 +470,42 @@ class Metasploit3 < Msf::Auxiliary
   end
 
   def probe_pkt_snmp1(ip)
-    name = 'public'
-    xid = rand(0x100000000)
-    pdu =
-      "\x02\x01\x00" +
-      "\x04" + [name.length].pack('c') + name +
-      "\xa0\x1c" +
-      "\x02\x04" + [xid].pack('N') +
-      "\x02\x01\x00" +
-      "\x02\x01\x00" +
-      "\x30\x0e\x30\x0c\x06\x08\x2b\x06\x01\x02\x01" +
-      "\x01\x01\x00\x05\x00"
-    head = "\x30" + [pdu.length].pack('C')
-    data = head + pdu
+    version = 1
+    data = OpenSSL::ASN1::Sequence([
+      OpenSSL::ASN1::Integer(version - 1),
+      OpenSSL::ASN1::OctetString("public"),
+      OpenSSL::ASN1::Set.new([
+        OpenSSL::ASN1::Integer(rand(0x80000000)),
+        OpenSSL::ASN1::Integer(0),
+        OpenSSL::ASN1::Integer(0),
+        OpenSSL::ASN1::Sequence([
+          OpenSSL::ASN1::Sequence([
+            OpenSSL::ASN1.ObjectId("1.3.6.1.2.1.1.1.0"),
+            OpenSSL::ASN1.Null(nil)
+          ])
+        ]),
+      ], 0, :IMPLICIT)
+    ]).to_der
     [data, 161]
   end
 
   def probe_pkt_snmp2(ip)
-    name = 'public'
-    xid = rand(0x100000000)
-    pdu =
-      "\x02\x01\x01" +
-      "\x04" + [name.length].pack('c') + name +
-      "\xa1\x19" +
-      "\x02\x04" + [xid].pack('N') +
-      "\x02\x01\x00" +
-      "\x02\x01\x00" +
-      "\x30\x0b\x30\x09\x06\x05\x2b\x06\x01\x02\x01" +
-      "\x05\x00"
-    head = "\x30" + [pdu.length].pack('C')
-    data = head + pdu
+    version = 2
+    data = OpenSSL::ASN1::Sequence([
+      OpenSSL::ASN1::Integer(version - 1),
+      OpenSSL::ASN1::OctetString("public"),
+      OpenSSL::ASN1::Set.new([
+        OpenSSL::ASN1::Integer(rand(0x80000000)),
+        OpenSSL::ASN1::Integer(0),
+        OpenSSL::ASN1::Integer(0),
+        OpenSSL::ASN1::Sequence([
+          OpenSSL::ASN1::Sequence([
+            OpenSSL::ASN1.ObjectId("1.3.6.1.2.1.1.1.0"),
+            OpenSSL::ASN1.Null(nil)
+          ])
+        ]),
+      ], 0, :IMPLICIT)
+    ]).to_der
     [data, 161]
   end
 
@@ -508,5 +529,4 @@ class Metasploit3 < Msf::Auxiliary
   def probe_pkt_pca_nq(ip)
     return ["NQ", 5632]
   end
-
 end

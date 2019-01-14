@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit4 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::Scanner
@@ -31,7 +28,7 @@ class Metasploit4 < Msf::Auxiliary
       [
         Opt::RPORT(50013),
         OptString.new('URI', [false, 'Path to the SAP Management Console ', '/']),
-      ], self.class)
+      ])
     register_autofilter_ports([ 50013 ])
     deregister_options('RHOST')
   end
@@ -47,10 +44,10 @@ class Metasploit4 < Msf::Auxiliary
       return
     end
 
-    getEnvironment(ip)
+    get_environment(ip)
   end
 
-  def getEnvironment(rhost)
+  def get_environment(rhost)
     print_status("#{rhost}:#{rport} [SAP] Connecting to SAP Management Console SOAP Interface ")
     success = false
 

@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 # Author: Carlos Perez at carlos_perez[at]darkoperator.com
 #-------------------------------------------------------------------------------
 ################## Variable Declarations ##################
@@ -5,7 +12,7 @@
   "-h"  => [ false,  "\tHelp menu."],
   "-t"  => [ true,  "\tTarget IP Address"],
   "-p"  => [ true,  "\tPassword List"],
-  "-cp" => [ false,  "\tCheck Local Machine Password Policy"],
+  "-c" => [ false,  "\tCheck Local Machine Password Policy"],
   "-L"  => [ true,  "\tUsername List to be brute forced"],
   "-l"  => [ true,  "\tLogin name to be brute forced"]
 )
@@ -70,7 +77,7 @@ def passbf(session,passlist,target,user,opt,logfile)
   a = []
   i = 0
   if opt == 1
-    if not ::File.exists?(user)
+    if not ::File.exist?(user)
       raise "Usernames List File does not exists!"
     else
       user = ::File.open(user, "r")
@@ -143,7 +150,7 @@ def unsupported
   print_error("This version of Meterpreter is not supported with this Script!")
   raise Rex::Script::Completed
 end
-unsupported if client.platform !~ /win32|win64/i
+unsupported if client.platform != 'windows'
 
 ################## MAIN ##################
 
@@ -157,13 +164,13 @@ unsupported if client.platform !~ /win32|win64/i
     userlist = val
     ulopt = 1
 
-  when "-cp"
+  when "-c"
     chkpolicy(session)
     exit
   when "-p"
 
     passlist = val
-    if not ::File.exists?(passlist)
+    if not ::File.exist?(passlist)
       raise "Password File does not exists!"
     end
   when "-t"

@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 # Meterpreter script for detecting if target host is a Virtual Machine
 # Provided by Carlos Perez at carlos_perez[at]darkoperator.com
 # Version: 0.2.0
@@ -337,7 +344,7 @@ def qemuchk(session)
 
 end
 
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   print_status("Checking if target is a Virtual Machine .....")
   found = hypervchk(session)
   found = vmwarechk(session) if not found

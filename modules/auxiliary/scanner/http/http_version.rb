@@ -1,13 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
 require 'rex/proto/http'
-require 'msf/core'
 
-
-class Metasploit3 < Msf::Auxiliary
+class MetasploitModule < Msf::Auxiliary
 
   # Exploit mixins should be called first
   include Msf::Exploit::Remote::HttpClient
@@ -33,14 +31,13 @@ class Metasploit3 < Msf::Auxiliary
   def run_host(ip)
     begin
       connect
-
-      res = send_request_raw({'uri' => '/', 'method' => 'GET' })
-      return if not res
-
+      res = send_request_raw({ 'uri' => '/', 'method' => 'GET' })
       fp = http_fingerprint(:response => res)
-      print_status("#{ip}:#{rport} #{fp}") if fp
+      print_good("#{ip}:#{rport} #{fp}") if fp
+      report_service(:host => rhost, :port => rport, :sname => (ssl ? 'https' : 'http'), :info => fp)
     rescue ::Timeout::Error, ::Errno::EPIPE
+    ensure
+      disconnect
     end
   end
-
 end

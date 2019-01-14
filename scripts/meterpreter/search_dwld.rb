@@ -1,3 +1,9 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
 
 ## Meterpreter script that recursively search and download
 ## files matching a given pattern
@@ -77,7 +83,7 @@ def unsupported
 end
 
 
-unsupported if client.platform !~ /win32|win64/i
+unsupported if client.platform != 'windows'
 # Get arguments
 basedir = args[0] || "C:\\"
 filter  = args[1] || "office"
@@ -85,7 +91,7 @@ filter  = args[1] || "office"
 # Set the regexp
 if filter == 'free'
   if args[2].nil?
-    raise RuntimeError.new("free filter requires pattern argument")
+    raise "free filter requires pattern argument"
   end
   $motif = args[2]
 else
@@ -93,7 +99,7 @@ else
 end
 
 if $motif.nil?
-  raise RuntimeError.new("Unrecognized filter")
+  raise "Unrecognized filter"
 end
 
 # Search and download

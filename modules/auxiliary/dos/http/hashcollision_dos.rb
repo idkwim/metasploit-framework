@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Auxiliary::Dos
 
@@ -31,7 +28,7 @@ class Metasploit3 < Msf::Auxiliary
           'Scott A. Crosby', # original advisory
           'Dan S. Wallach', # original advisory
           'Krzysztof Kotowicz', # payload generator
-          'Christian Mehlmauer <FireFart[at]gmail.com>' # metasploit module
+          'Christian Mehlmauer' # metasploit module
         ],
       'License'       => MSF_LICENSE,
       'References'    =>
@@ -54,7 +51,7 @@ class Metasploit3 < Msf::Auxiliary
       OptEnum.new('TARGET', [ true, 'Target to attack', nil, ['PHP','Java']]),
       OptString.new('URL', [ true, "The request URI", '/' ]),
       OptInt.new('RLIMIT', [ true, "Number of requests to send", 50 ])
-    ], self.class)
+    ])
 
     register_advanced_options(
     [
@@ -63,7 +60,7 @@ class Metasploit3 < Msf::Auxiliary
       OptInt.new('CollisionChars', [false, "Number of colliding chars to find", 5]),
       OptInt.new('CollisionCharLength', [false, "Length of the collision chars (2 = Ey, FZ; 3=HyA, ...)", 2]),
       OptInt.new('PayloadLength', [false, "Length of each parameter in the payload", 8])
-    ], self.class)
+    ])
   end
 
   def generate_payload

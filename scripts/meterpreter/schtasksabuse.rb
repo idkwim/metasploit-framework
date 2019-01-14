@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 
 #Meterpreter script for abusing the scheduler service in windows
 #by scheduling and running a list of command against one or more targets
@@ -124,7 +131,7 @@ end
     delay = val.to_i
   when "-s"
     script = val
-    if not ::File.exists?(script)
+    if not ::File.exist?(script)
       raise "Command List File does not exists!"
     else
       ::File.open(script, "r").each_line do |line|
@@ -133,7 +140,7 @@ end
     end
   when "-l"
     list = val
-    if not ::File.exists?(list)
+    if not ::File.exist?(list)
       raise "Command List File does not exists!"
     else
       ::File.open(list, "r").each_line do |line|
@@ -146,7 +153,7 @@ end
 
 }
 
-unsupported if client.platform !~ /win32|win64/i
+unsupported if client.platform != 'windows'
 print_status("Meterpreter session running as #{session.sys.config.getuid}")
 if help == 0 && commands.length != 0
   abuse(session,targets,commands,username,password,delay)

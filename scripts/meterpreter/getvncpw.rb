@@ -1,3 +1,11 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
+
 #----------------------------------------------------------------
 # Meterpreter script to obtain the VNC password out of the
 # registry and print its decoded cleartext
@@ -73,7 +81,7 @@ keytosearch = nil
     keytosearch = val
   end
 }
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
 if keytosearch == nil
   print_status("Searching for VNC Passwords in the registry....")
   keys.each { |key|

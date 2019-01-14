@@ -1,14 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
+require 'bindata'
 
-require 'msf/core'
-require 'bit-struct'
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::Udp
   include Msf::Exploit::Remote::Tcp
   include Msf::Auxiliary::Fuzzer
@@ -50,47 +47,37 @@ class Metasploit3 < Msf::Auxiliary
       # RR accepted values: KEY,GPOS,LOC,NXT,EID,NIMLOC,ATMA,KX,CERT,A6,DNAME,SINK,OPT,APL,SSHFP,IPSECKEY
       # RR accepted values: DHCID,HIP,NINFO,RKEY,TALINK,SPF,UINFO,UID,GID,UNSPEC,TKEY,TSIG,IXFR,AXFR,MAILB
       # RR accepted values: MAIL,*,TA,DLV,RESERVED
-    ], self.class)
+    ])
   end
 
-  class Dns_header < BitStruct
-    unsigned :txid, 16, { :default => rand(0xffff) }
-    unsigned :qr, 1, { :default => 0 }
-    unsigned :opcode, 4, { :default => 0 }
-    unsigned :aa, 1, { :default => 0 }
-    unsigned :tc, 1, { :default => 0 }
-    unsigned :rd, 1, { :default => 0 }
-    unsigned :ra, 1, { :default => 0 }
-    unsigned :z, 3, { :default => 0 }
-    unsigned :rcode, 4, { :default => 0 }
-    unsigned :questions, 16, { :default => 1 }
-    unsigned :answerRR, 16, { :default => 0 }
-    unsigned :authorityRR, 16, { :default => 0 }
-    unsigned :additionalRR, 16, { :default => 0 }
-    rest :payload
-
-    def initialize(*args)
-      @options = []
-      super
-    end
-
+  class Dns_header < BinData::Record
+    endian :big
+    uint16 :txid, initial_value: rand(0xffff)
+    bit1   :qr
+    bit4   :opcode
+    bit1   :aa
+    bit1   :tc
+    bit1   :rd
+    bit1   :ra
+    bit3   :z
+    bit4   :rcode
+    uint16 :questions, initial_value: 1
+    uint16 :answerRR
+    uint16 :authorityRR
+    uint16 :additionalRR
+    rest   :payload
   end
 
-  class Dns_add_rr < BitStruct
-    unsigned :name, 8, { :default => 0 }
-    unsigned :type, 16, { :default => 0x0029 }
-    unsigned :payloadsize, 16, { :default => 0x1000 }
-    unsigned :highercode, 8, { :default => 0 }
-    unsigned :ednsversion, 8, { :default => 0 }
-    unsigned :zlow, 8, { :default => 0 }
-    unsigned :zhigh,8, { :default => 0x80 }
-    unsigned :datalength, 16, { :default => 0 }
-
-    def initialize(*args)
-      @options = []
-      super
-    end
-
+  class Dns_add_rr < BinData::Record
+    endian :big
+    uint8  :name
+    uint16 :rr_type, initial_value: 0x0029
+    uint16 :payloadsize, initial_value: 0x1000
+    uint8  :highercode
+    uint8  :ednsversion
+    uint8  :zlow
+    uint8  :zhigh, initial_value: 0x80
+    uint16 :datalength
   end
 
   def msg
@@ -124,21 +111,24 @@ class Metasploit3 < Msf::Auxiliary
       domain << "."
       domain << @domain
     end
+
     splitFQDN = domain.split('.')
     payload = splitFQDN.inject("") { |a,x| a + [x.length,x].pack("CA*") }
     pkt = Dns_header.new
     pkt.txid = rand(0xffff)
     pkt.opcode = 0x0000
     pkt.payload = payload + "\x00" + "\x00\x01" + "\x00\x01"
-    testingPkt = pkt.to_s
-    udp_sock.put(testingPkt) if method == "UDP"
-    sock.put(testingPkt) if method == "TCP"
+    testingPkt = pkt.to_binary_s
 
-    res, addr = udp_sock.recvfrom(65535,5) if method == "UDP"
-    res, addr = sock.get_once(-1,5) if method == "TCP"
-
-    disconnect_udp if method == "UDP"
-    disconnect if method == "TCP"
+    if method == "UDP"
+      udp_sock.put(testingPkt)
+      res, addr = udp_sock.recvfrom(65535)
+      disconnect_udp
+    elsif method == "TCP"
+      sock.put(testingPkt)
+      res, addr = sock.get_once(-1, 20)
+      disconnect
+    end
 
     if res && res.empty?
       print_error("#{msg} The remote server is not responding to DNS requests.")
@@ -275,9 +265,9 @@ class Metasploit3 < Msf::Auxiliary
     if dnssec
       dnssecpkt = Dns_add_rr.new
       pkt.additionalRR = 1
-      pkt = pkt + dnssecpkt
+      pkt.payload = dnssecpkt.to_binary_s
     end
-    return pkt
+    return pkt.to_binary_s
   end
 
   def dns_send(data,method)
@@ -302,7 +292,12 @@ class Metasploit3 < Msf::Auxiliary
         return true
       elsif @failCount >= 3
         if dns_alive(method) == false
-          print_error("#{msg} DNS is DOWN since the request:\n#{@lastdata.unpack('H*')}")
+          if @lastdata
+            print_error("#{msg} DNS is DOWN since the request:")
+            print_error(lastdata.unpack('H*'))
+          else
+            print_error("#{msg} DNS is DOWN")
+          end
           return false
         else
           return true
@@ -330,22 +325,17 @@ class Metasploit3 < Msf::Auxiliary
   end
 
   def fix_variables
-    if datastore['OPCODE'] == ""
-      datastore['OPCODE'] = "QUERY,IQUERY,STATUS,UNASSIGNED,NOTIFY,UPDATE"
-    end
-    if datastore['CLASS'] == ""
-      datastore['CLASS'] = "IN,CH,HS,NONE,ANY"
-    end
-    if datastore['RR'] == ""
-      datastore['RR'] = "A,NS,MD,MF,CNAME,SOA,MB,MG,MR,NULL,WKS,PTR,"
-      datastore['RR'] << "HINFO,MINFO,MX,TXT,RP,AFSDB,X25,ISDN,RT,"
-      datastore['RR'] << "NSAP,NSAP-PTR,SIG,KEY,PX,GPOS,AAAA,LOC,NXT,"
-      datastore['RR'] << "EID,NIMLOC,SRV,ATMA,NAPTR,KX,CERT,A6,DNAME,"
-      datastore['RR'] << "SINK,OPT,APL,DS,SSHFP,IPSECKEY,RRSIG,NSEC,"
-      datastore['RR'] << "DNSKEY,DHCID,NSEC3,NSEC3PARAM,HIP,NINFO,RKEY,"
-      datastore['RR'] << "TALINK,SPF,UINFO,UID,GID,UNSPEC,TKEY,TSIG,"
-      datastore['RR'] << "IXFR,AXFR,MAILA,MAILB,*,TA,DLV,RESERVED"
-    end
+    @fuzz_opcode = datastore['OPCODE'].blank? ? "QUERY,IQUERY,STATUS,UNASSIGNED,NOTIFY,UPDATE" : datastore['OPCODE']
+    @fuzz_class  = datastore['CLASS'].blank? ? "IN,CH,HS,NONE,ANY" : datastore['CLASS']
+    fuzz_rr_queries = "A,NS,MD,MF,CNAME,SOA,MB,MG,MR,NULL,WKS,PTR," <<
+      "HINFO,MINFO,MX,TXT,RP,AFSDB,X25,ISDN,RT," <<
+      "NSAP,NSAP-PTR,SIG,KEY,PX,GPOS,AAAA,LOC,NXT," <<
+      "EID,NIMLOC,SRV,ATMA,NAPTR,KX,CERT,A6,DNAME," <<
+      "SINK,OPT,APL,DS,SSHFP,IPSECKEY,RRSIG,NSEC," <<
+      "DNSKEY,DHCID,NSEC3,NSEC3PARAM,HIP,NINFO,RKEY," <<
+      "TALINK,SPF,UINFO,UID,GID,UNSPEC,TKEY,TSIG," <<
+      "IXFR,AXFR,MAILA,MAILB,*,TA,DLV,RESERVED"
+    @fuzz_rr     = datastore['RR'].blank? ? fuzz_rr_queries : datastore['RR']
   end
 
   def run_host(ip)
@@ -381,7 +371,7 @@ class Metasploit3 < Msf::Auxiliary
         if @domain == nil
           print_status("DNS Fuzzer: DOMAIN could be set for health check but not mandatory.")
         end
-        nsopcode=datastore['OPCODE'].split(",")
+        nsopcode=@fuzz_opcode.split(",")
         opcode = setup_opcode(nsopcode)
         opcode.unpack("n*").each do |dnsOpcode|
           1.upto(iter) do
@@ -414,11 +404,11 @@ class Metasploit3 < Msf::Auxiliary
           nsclass << req[:class]
           nsentry << req[:name]
         end
-        nsopcode=datastore['OPCODE'].split(",")
+        nsopcode=@fuzz_opcode.split(",")
       else
-        nsreq=datastore['RR'].split(",")
-        nsopcode=datastore['OPCODE'].split(",")
-        nsclass=datastore['CLASS'].split(",")
+        nsreq=@fuzz_rr.split(",")
+        nsopcode=@fuzz_opcode.split(",")
+        nsclass=@fuzz_class.split(",")
         begin
           classns = setup_nsclass(nsclass)
           raise ArgumentError, "Invalid CLASS: #{nsclass.inspect}" unless classns

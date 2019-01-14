@@ -1,3 +1,11 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
+
 # Author: davehull at dph_msf@trustedsignal.com
 #-------------------------------------------------------------------------------
 
@@ -58,10 +66,9 @@ end
 def enum_users(os)
   users = []
   userinfo = {}
-  user = @client.sys.config.getuid
   userpath = nil
   useroffcpath = nil
-  sysdrv = @client.fs.file.expand_path("%SystemDrive%")
+  sysdrv = @client.sys.config.getenv('SystemDrive')
   if os =~ /Windows 7|Vista|2008/
     userpath = sysdrv + "\\Users\\"
     lnkpath = "\\AppData\\Roaming\\Microsoft\\Windows\\Recent\\"
@@ -71,7 +78,7 @@ def enum_users(os)
     lnkpath = "\\Recent\\"
     officelnkpath = "\\Application Data\\Microsoft\\Office\\Recent\\"
   end
-  if user == "NT AUTHORITY\\SYSTEM"
+  if @client.sys.config.is_system?
     print_status("Running as SYSTEM extracting user list...")
     @client.fs.dir.foreach(userpath) do |u|
       next if u =~ /^(\.|\.\.|All Users|Default|Default User|Public|desktop.ini)$/
@@ -83,7 +90,7 @@ def enum_users(os)
       users << userinfo
     end
   else
-    uservar = @client.fs.file.expand_path("%USERNAME%")
+    uservar = @client.sys.config.getenv('USERNAME')
     userinfo['username'] = uservar
     userinfo['userpath'] = userpath + uservar + lnkpath
     userinfo['useroffcpath'] = userpath + uservar + officelnkpath
@@ -361,7 +368,7 @@ def get_time(lo_byte, hi_byte)
   end
   return time
 end
-if client.platform =~ /win32|win64/
+if client.platform == 'windows'
   enum_users(os).each do |user|
     if user['userpath']
       print_status "Extracting lnk files for user #{user['username']} at #{user['userpath']}..."

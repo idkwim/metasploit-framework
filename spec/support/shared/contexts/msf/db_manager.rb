@@ -1,5 +1,4 @@
-shared_context 'Msf::DBManager' do
-  include_context 'DatabaseCleaner'
+RSpec.shared_context 'Msf::DBManager' do
   include_context 'Msf::Simple::Framework'
 
   let(:active) do
@@ -7,17 +6,18 @@ shared_context 'Msf::DBManager' do
   end
 
   let(:db_manager) do
-    framework.db
+    if ENV['REMOTE_DB']
+      require 'metasploit/framework/data_service/remote/managed_remote_data_service'
+      remote_data_service = Metasploit::Framework::DataService::ManagedRemoteDataService.instance.remote_data_service
+      framework.db.register_data_service(remote_data_service)
+    end
+
+    framework.db.get_data_service
   end
 
-  before(:each) do
-    configurations = Metasploit::Framework::Database.configurations
-    spec = configurations[Metasploit::Framework.env]
-
-    # Need to connect or ActiveRecord::Base.connection_pool will raise an
-    # error.
-    db_manager.connect(spec)
-
-    db_manager.stub(:active => active)
+  before(:example) do
+    # already connected due to use_transactional_fixtures, but need some of the side-effects of #connect
+    db_manager.workspace = db_manager.default_workspace
+    allow(db_manager).to receive(:active).and_return(active)
   end
 end

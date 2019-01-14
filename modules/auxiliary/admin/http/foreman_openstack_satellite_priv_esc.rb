@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit4 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
 
   def initialize
@@ -67,7 +64,7 @@ class Metasploit4 < Msf::Auxiliary
       print_error('Authentication failed')
       return
     else
-      session = $1 if res.headers['Set-Cookie'] =~ /_session_id=([0-9a-f]*)/
+      session = $1 if res.get_cookies =~ /_session_id=([0-9a-f]*)/
 
       if session.nil?
         print_error('Failed to retrieve the current session id')

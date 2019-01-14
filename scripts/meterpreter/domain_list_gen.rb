@@ -1,3 +1,10 @@
+##
+# WARNING: Metasploit no longer maintains or accepts meterpreter scripts.
+# If you'd like to improve this script, please try to port it as a post
+# module instead. Thank you.
+##
+
+
 # Author: Carlos Perez at carlos_perez[at]darkoperator.com
 #-------------------------------------------------------------------------------
 #Options and Option Parsing
@@ -49,7 +56,7 @@ end
 # Create Filename info to be appended to downloaded files
 filenameinfo = "_" + ::Time.now.strftime("%Y%m%d.%M%S")
 
-unsupported if client.platform !~ /win32|win64/i
+unsupported if client.platform != 'windows'
 
 # Create a directory for the logs
 logs = ::File.join(Msf::Config.log_directory, 'scripts','domain_admins')

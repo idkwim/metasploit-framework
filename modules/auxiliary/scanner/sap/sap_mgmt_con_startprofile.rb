@@ -1,12 +1,9 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-require 'msf/core'
-
-class Metasploit4 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Remote::HttpClient
   include Msf::Auxiliary::Report
   include Msf::Auxiliary::Scanner
@@ -15,7 +12,7 @@ class Metasploit4 < Msf::Auxiliary
     super(
       'Name'         => 'SAP Management Console getStartProfile',
       'Description'  => %q{
-        This module simply attempts to acces the SAP startup profile
+        This module simply attempts to access the SAP startup profile
         through the SAP Management Console SOAP Interface.
         },
       'References'   =>
@@ -31,7 +28,7 @@ class Metasploit4 < Msf::Auxiliary
       [
         Opt::RPORT(50013),
         OptString.new('URI', [false, 'Path to the SAP Management Console ', '/']),
-      ], self.class)
+      ])
     register_autofilter_ports([ 50013 ])
     deregister_options('RHOST')
   end
@@ -47,10 +44,10 @@ class Metasploit4 < Msf::Auxiliary
       return
     end
 
-    getStartProfile(ip)
+    get_start_profile(ip)
   end
 
-  def getStartProfile(rhost)
+  def get_start_profile(rhost)
     print_status("#{rhost}:#{rport} [SAP] Connecting to SAP Management Console SOAP Interface")
     success = false
     soapenv ='http://schemas.xmlsoap.org/soap/envelope/'

